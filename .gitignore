@@ -1,0 +1,44 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+# uv.lock É versionado — não ignorar
+
+# --- Segredo ---
+.env
+.env.*
+*.pem
+*_rsa
+*_ed25519
+
+# --- Terraform ---
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+# .terraform.lock.hcl É versionado — não ignorar
+
+# --- Ansible ---
+*.retry
+vault-pass*
+
+# --- Dado local (o dado de verdade mora no HD externo, fora do repo) ---
+bronze/
+silver/
+gold/
+*.parquet
+*.duckdb
+mlruns/
+
+# --- IDE / SO ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
