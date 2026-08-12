@@ -228,10 +228,9 @@ atlas/
 
 > **Mantenha esta seção atualizada. É o primeiro lugar que você deve olhar.**
 
-- **Passo atual do MANUAL:** PASSO 3 — bancada no PC principal (em andamento)
-  - Feito: repositório Git criado, `main`, `CLAUDE.md` e `MANUAL.md` no lugar
-  - Falta: estrutura de pastas, ambiente Python, Docker, ADR-000
-- **Último passo concluído:** nenhum
+- **Passo atual do MANUAL:** PASSO 5 — acesso remoto confortável (a começar)
+- **Último passo concluído:** PASSO 4 — Ubuntu Server minimized instalado no notebook (`guilin@atlaslol`), boot em Legacy/CSM (Secure Boot desligado por limitação da BIOS Acer), Wi-Fi (`GUILYN`), OpenSSH Server instalado, senha SSH liberada temporariamente para o `ssh-copy-id` do PASSO 5. `free -h` pós-boot: 450 Mi usado / 3,2 Gi total — dentro do critério
+  - PASSO 3 fechado (repo, pastas, uv+ruff, git push na conta certa, extensão Remote-SSH) exceto o **conteúdo** do ADR-000, que o usuário escreve depois — o template já existe em `docs/adr/000-por-que-este-projeto-existe.md`
 - **Travado em:** nada
 - **Hardware:** upgrade de SSD/RAM pendente · HD externo: _(confirmar USB 2.0 ou 3.0, HDD ou SSD)_
 - **Riot API:** usando **dev key** (expira em 24h, renovação manual com CAPTCHA). Personal key será solicitada mais tarde — decisão consciente.
