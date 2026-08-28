@@ -159,6 +159,9 @@ Não reabra sem motivo novo. Cada uma tem ADR em `docs/adr/`.
 | 015 | Não usar métrica de profissional como benchmark pessoal |
 | 016 | Kubernetes no PC via k3d |
 | 018 | LLM narra, nunca calcula |
+| 019 | Roteador próprio atrás do ONT; PC em duas interfaces (cabo=internet, Wi-Fi=homelab) |
+| 020 | Patch automático sim, reboot automático não — até a API ser exposta |
+| 021 | Bateria removida do servidor; nobreak como substituição |
 
 ### Conceitos que estruturam tudo
 
@@ -228,11 +231,36 @@ atlas/
 
 > **Mantenha esta seção atualizada. É o primeiro lugar que você deve olhar.**
 
-- **Passo atual do MANUAL:** PASSO 5 — acesso remoto confortável (a começar)
-- **Último passo concluído:** PASSO 4 — Ubuntu Server minimized instalado no notebook (`guilin@atlaslol`), boot em Legacy/CSM (Secure Boot desligado por limitação da BIOS Acer), Wi-Fi (`GUILYN`), OpenSSH Server instalado, senha SSH liberada temporariamente para o `ssh-copy-id` do PASSO 5. `free -h` pós-boot: 450 Mi usado / 3,2 Gi total — dentro do critério
+- **Passo atual do MANUAL:** PASSO 9 — vocabulário de ETL (só leitura) e depois PASSO 10, o coletor mínimo
+- **Último passo concluído:** PASSO 8 — HD externo em `/mnt/dados`, ext4, montado por UUID
+  - `/etc/fstab`: `UUID=b1b39d70-2712-436b-a7b8-aa1e80a1c0a0 /mnt/dados ext4 defaults,nofail,x-systemd.device-timeout=45 0 2`
+  - **O timeout de 45 s não é enfeite:** com 10 s a montagem falhava no boot. O `udev` leva mais de 15 s para criar o link em `/dev/disk/by-uuid/` depois que o kernel anexa o disco, porque HDD por USB 2.0 é lento para sondar
+  - Spin-down desativado de forma persistente em `/etc/hdparm.conf`, referenciando o disco por `/dev/disk/by-id/usb-JMicron_Generic_DD202505051001-0:0`
+  - Estrutura criada: `bronze/`, `parquet/`, `backups/`, `minio/`, com dono `guilin`
+  - **Pendência crítica para o PASSO 11:** todo `.service` que escreva em `/mnt/dados` precisa de `RequiresMountsFor=/mnt/dados`. Sem isso, se a montagem falhar (o `nofail` falha em silêncio), o job grava num diretório vazio **no disco interno** e enche o `sda` sem gerar erro
+- **Passo anterior:** PASSO 7 — zram ativo e swap hierarquizado
+  - `/dev/zram0`, algoritmo `zstd`, 4,8 GB (150% da RAM), **prioridade 100**; `/swap.img` de 3,7 GB no disco interno com prioridade `-1` como última instância. O kernel esgota a RAM comprimida antes de encostar no HDD
+  - `/etc/sysctl.d/99-atlas-memoria.conf` com `vm.swappiness=100` e `vm.page-cluster=0` (desliga readahead de swap, que só faz sentido para amortizar seek de disco mecânico)
+  - Número **alto** de propósito: em `sysctl.d`, como no systemd, o último valor vence — oposto do `sshd_config`
+- **Passo anterior:** PASSO 6 — servidor sobrevivendo de tampa fechada. Validado com folga: **vários dias sem intervenção**, e `ssh servidor` funcionando de primeira depois
+  - Drop-in `/etc/systemd/logind.conf.d/10-atlas-lid.conf` com as três diretivas `HandleLidSwitch*=ignore`; `unattended-upgrades` ativo com reboot manual (ADR-020); `lm-sensors` instalado — 44 °C em repouso, crítico em 100 °C, com folga enorme (revisitar sob carga real de containers)
+  - **Pendência anotada para o Ansible (PASSO 13):** considerar `HandlePowerKey=ignore` no mesmo drop-in, para evitar desligamento acidental — hoje está no padrão (`poweroff`)
+- **Último passo concluído:** PASSO 5 — `ssh servidor` entra só com passphrase; login por senha recusado (`Permission denied (publickey)`); VS Code Remote-SSH editando arquivo no servidor; teste de aprendizado respondido
+  - Hardening em `/etc/ssh/sshd_config.d/01-atlas-hardening.conf`: senha, keyboard-interactive e root desabilitados. **Número baixo de propósito** — no `sshd_config` o *primeiro* valor vence, e o `50-cloud-init.conf` trazia `PasswordAuthentication yes`
+  - **Cuidado com o VS Code Remote-SSH:** o VS Code Server roda no notebook (200–400 MB + extensões). Serve para editar config do servidor, **não** para hospedar a IDE de Python — o language server rodando em 2 núcleos e HDD é inviável. Código Python se escreve no PC (§4)
+- **Rede — resolvido com hardware novo.** O ONT da operadora (ZTE F6600P, Canaã Telecom) não permite reserva de DHCP nem acesso admin (condicionado a plano pago). Solução: roteador **Huawei AX2S** como secundário atrás do ONT, com NAT duplo. Notebook em `192.168.3.6` (reserva de DHCP), acessado do PC via mapeamento de porta 22 na WAN do Huawei (`192.168.1.231`). Topologia completa em `docs/inventario-rede.md`, decisão em `docs/adr/019-roteador-secundario-e-acesso-ao-homelab.md`
+  - **Consequência para os próximos passos:** todo serviço do homelab que precise ser acessado do PC (MinIO, Grafana, Postgres, FastAPI, Prometheus) exigirá uma **regra de mapeamento de porta** no Huawei, registrada no inventário. Isso vale até o ONT ir para modo bridge
+  - O notebook fica alcançável na porta 22 por qualquer aparelho da rede doméstica — **não pela internet**. Torna obrigatórios: chave-só no SSH e `ufw` no notebook (hoje inativo)
+- **Último passo concluído:** PASSO 4 — Ubuntu Server 26.04 minimized no notebook (`guilin@atlaslol`), boot em Legacy/CSM (Secure Boot desligado por limitação da BIOS Acer), OpenSSH Server instalado. `free -h` pós-boot: 450 Mi usado / 3,2 Gi total — dentro do critério
   - PASSO 3 fechado (repo, pastas, uv+ruff, git push na conta certa, extensão Remote-SSH) exceto o **conteúdo** do ADR-000, que o usuário escreve depois — o template já existe em `docs/adr/000-por-que-este-projeto-existe.md`
+- **Objetivo declarado para o futuro:** **expor a API na internet para amigos testarem.** Isso ainda não existe, mas muda a postura de segurança quando acontecer — o servidor deixa de ser exclusivamente doméstico e passa a ser varrido por bots. Gatilho explícito no ADR-020 (ligar reboot automático) e implica encaminhamento de porta também no ONT, DNS dinâmico e revisão do ADR-019
 - **Travado em:** nada
-- **Hardware:** upgrade de SSD/RAM pendente · HD externo: _(confirmar USB 2.0 ou 3.0, HDD ou SSD)_
+- **Hardware:** upgrade de SSD/RAM pendente · roteador Huawei AX2S adquirido para a rede do homelab
+  - **Disco interno:** `sda`, 931,5 GB (ST1000LM024), SATA — onde o Postgres mora (ADR-001)
+  - **HD externo:** `sdb`, **465,8 GB, HDD, USB 2.0** — perguntas do Apêndice D respondidas. O ADR-001 **não se inverte**: continua bronze/Parquet/backups no externo, Postgres no interno. Atenção ao tamanho: 500 GB é restrição real para a camada bronze
+    - A gaveta é JMicron `152d:0578` (família JMS578, **capaz de USB 3.0**) e mesmo assim negociou `high-speed`. Provável limitação do cabo ou da porta usada — **vale testar uma porta azul antes de assumir 2.0 como teto**
+    - Reporta `Disabling FUA` e `Write cache: enabled`: o sistema não consegue forçar escrita até o prato, e queda de energia pode perder dado já confirmado
+  - **Bateria removida** em 2026-08-20 (ADR-021). Estava com 39% de desgaste e o kernel não expõe controle de carga. Consequência: **queda de energia agora é corte instantâneo**, sem desligamento gracioso. Próxima compra de infraestrutura é um **nobreak**
 - **Riot API:** usando **dev key** (expira em 24h, renovação manual com CAPTCHA). Personal key será solicitada mais tarde — decisão consciente.
   - **Consequência:** o PASSO 11 (coleta automática por systemd timer) fica limitado até lá. **Não sugira agendamento que dependa de chave permanente.**
   - Enquanto isso, a coleta é manual: colar a chave nova em `EnvironmentFile` e rodar uma sessão a cada 2–3 dias.

@@ -3,7 +3,10 @@ name = "atlas"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "httpx>=0.28",
+    "zstandard>=0.23",
+]
 
 [dependency-groups]
 dev = [
