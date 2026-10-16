@@ -8,6 +8,7 @@ __pycache__/
 # --- Segredo ---
 .env
 .env.*
+!.env.example
 *.pem
 *_rsa
 *_ed25519
@@ -42,3 +43,7 @@ Thumbs.db
 
 # --- Logs ---
 *.log
+
+# Dados locais de desenvolvimento
+bronze-local/
+temp-json-analysis/
