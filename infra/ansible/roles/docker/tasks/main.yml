@@ -1,0 +1,7 @@
+---
+- name: Garantir que o Docker esteja instalado
+  ansible.builtin.apt:
+    name: docker.io
+    state: present
+    update_cache: true
+    cache_valid_time: 3600

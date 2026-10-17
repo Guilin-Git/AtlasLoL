@@ -232,11 +232,15 @@ atlas/
 
 > **Mantenha esta seção atualizada. É o primeiro lugar que você deve olhar.**
 
-- **Passos em andamento:** PASSO 11 e PASSO 13
+- **Passo em andamento:** PASSO 11
   - `atlas-collector.service` e `atlas-collector.timer` configurados manualmente no servidor, como exige a etapa pedagógica anterior ao Ansible.
   - Timer horário habilitado e ativo; coleta manual, idempotência, coleta incremental e retorno após reboot já validados.
   - Período de observação de 48 horas ainda em andamento; não declarar o PASSO 11 concluído antes desse teste.
--  PASSO 13 pode avançar em paralelo: transformar a configuração manual do servidor em roles Ansible.
+- **Último passo concluído:** PASSO 13 — playbook de reconstrução do servidor validado em 2026-10-17
+  - `infra/ansible/site.yml` reúne roles para acesso SSH, logind, memória/zram, swap, disco de dados, Docker, atualizações automáticas, runtime e coletor.
+  - O segredo da Riot é armazenado em `group_vars/atlas_server/vault.yml`, criptografado com Ansible Vault, e provisionado como `/etc/atlas/collector.env` com permissões restritas.
+  - O runtime fixa a revisão validada do repositório e `uv 0.13.1`; o timer do coletor continua sob `systemd`.
+  - Validação final: primeira convergência aplicou apenas o hardening SSH; a segunda reconectou por chave e encerrou com `ok=35`, `changed=0`, `failed=0` e `unreachable=0`.
 - **Último passo concluído:** PASSO 12 — primeiro playbook Ansible validado em 2026-10-17
   - Controlador: WSL do PC; host gerenciado: `atlaslol` (`192.168.3.6`) via SSH como `guilin`.
   - `infra/ansible/install-docker.yml` garantiu `docker.io` com o módulo idempotente `apt`.

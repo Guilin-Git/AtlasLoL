@@ -1,0 +1,6 @@
+---
+atlas_admin_user: guilin
+atlas_admin_uid: 1000
+atlas_admin_shell: /bin/bash
+atlas_admin_groups:
+  - sudo

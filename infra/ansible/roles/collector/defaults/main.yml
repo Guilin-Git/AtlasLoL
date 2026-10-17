@@ -1,0 +1,10 @@
+---
+atlas_collector_user: guilin
+atlas_collector_group: guilin
+atlas_collector_repo: /home/guilin/AtlasLoL
+atlas_collector_uv: /home/guilin/.local/bin/uv
+atlas_collector_secret_file: /etc/atlas/collector.env
+atlas_collector_bronze_dir: /mnt/dados/bronze
+atlas_riot_game_name: Like Bruce Wayne
+atlas_riot_tag_line: Ligui
+atlas_collector_match_count: 20

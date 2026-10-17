@@ -1,0 +1,48 @@
+---
+- name: Garantir ferramentas do runtime do AtlasLoL
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - git
+    state: present
+
+- name: Garantir repositorio do AtlasLoL na revisao validada
+  ansible.builtin.git:
+    repo: "{{ atlas_runtime_repo_url }}"
+    dest: "{{ atlas_runtime_repo }}"
+    version: "{{ atlas_runtime_repo_revision }}"
+    update: false
+    force: false
+  become_user: "{{ atlas_runtime_user }}"
+
+- name: Verificar versao instalada do uv
+  ansible.builtin.command:
+    argv: ["{{ atlas_runtime_uv }}", --version]
+  become_user: "{{ atlas_runtime_user }}"
+  environment:
+    HOME: "{{ atlas_runtime_home }}"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: atlas_runtime_uv_version_check
+
+- name: Baixar instalador fixado do uv
+  ansible.builtin.get_url:
+    url: "{{ atlas_runtime_uv_installer_url }}"
+    dest: "{{ atlas_runtime_uv_installer }}"
+    mode: "0755"
+  when: atlas_runtime_uv_version not in atlas_runtime_uv_version_check.stdout
+
+- name: Instalar versao fixada do uv para o coletor
+  ansible.builtin.command:
+    argv: [/bin/sh, "{{ atlas_runtime_uv_installer }}"]
+  become_user: "{{ atlas_runtime_user }}"
+  environment:
+    HOME: "{{ atlas_runtime_home }}"
+  when: atlas_runtime_uv_version not in atlas_runtime_uv_version_check.stdout
+
+- name: Remover instalador temporario do uv
+  ansible.builtin.file:
+    path: "{{ atlas_runtime_uv_installer }}"
+    state: absent
+  when: atlas_runtime_uv_version not in atlas_runtime_uv_version_check.stdout

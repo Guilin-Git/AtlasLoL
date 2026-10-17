@@ -1,0 +1,55 @@
+---
+- name: Criar diretorio de segredos do AtlasLoL
+  ansible.builtin.file:
+    path: /etc/atlas
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Provisionar segredo do coletor a partir do Ansible Vault
+  ansible.builtin.template:
+    src: collector.env.j2
+    dest: "{{ atlas_collector_secret_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false
+  no_log: true
+  when: vault_riot_api_key is defined
+
+- name: Verificar se o segredo do coletor foi provisionado
+  ansible.builtin.stat:
+    path: "{{ atlas_collector_secret_file }}"
+  register: atlas_collector_secret
+
+- name: Instalar unit systemd do coletor
+  ansible.builtin.template:
+    src: atlas-collector.service.j2
+    dest: /etc/systemd/system/atlas-collector.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recarregar systemd e reiniciar timer do coletor
+
+- name: Instalar timer systemd do coletor
+  ansible.builtin.template:
+    src: atlas-collector.timer.j2
+    dest: /etc/systemd/system/atlas-collector.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recarregar systemd e reiniciar timer do coletor
+
+- name: Habilitar timer quando o segredo estiver disponivel
+  ansible.builtin.systemd_service:
+    name: atlas-collector.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: atlas_collector_secret.stat.exists
+
+- name: Informar segredo ausente sem iniciar coletor
+  ansible.builtin.debug:
+    msg: "Timer nao foi iniciado porque {{ atlas_collector_secret_file }} ainda nao existe."
+  when: not atlas_collector_secret.stat.exists

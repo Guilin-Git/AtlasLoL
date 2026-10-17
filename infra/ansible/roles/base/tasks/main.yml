@@ -1,0 +1,32 @@
+---
+- name: Garantir diretorio de configuracao do logind
+  ansible.builtin.file:
+    path: /etc/systemd/logind.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Manter servidor ativo ao fechar a tampa
+  ansible.builtin.copy:
+    dest: /etc/systemd/logind.conf.d/10-atlas-lid.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Login]
+      HandleLidSwitch=ignore
+      HandleLidSwitchExternalPower=ignore
+      HandleLidSwitchDocked=ignore
+  notify: Reiniciar systemd-logind
+
+- name: Configurar politica de memoria do AtlasLoL
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-atlas-memoria.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      vm.swappiness=100
+      vm.page-cluster=0
+  notify: Aplicar configuracoes sysctl

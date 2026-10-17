@@ -1,0 +1,37 @@
+---
+- name: Auditar persistencia do zram no AtlasLoL
+  hosts: atlas_server
+  become: true
+  gather_facts: false
+
+  vars:
+    atlas_zram_audit_commands:
+      - label: Arquivos de configuracao zram em /etc
+        argv: [find, /etc, -maxdepth, "3", -type, f, -iname, "*zram*", -print]
+      - label: Configuracao do zram-tools
+        argv: [cat, /etc/default/zramswap]
+      - label: Unit do zram-tools
+        argv: [systemctl, cat, zramswap.service]
+      - label: Pacotes relacionados a zram
+        argv: [dpkg-query, -W, "-f=${Package} ${Version}\\n", systemd-zram-generator, zram-tools]
+
+  tasks:
+    - name: Coletar origem persistente do zram
+      ansible.builtin.command:
+        argv: "{{ item.argv }}"
+      changed_when: false
+      failed_when: false
+      register: atlas_zram_audit
+      loop: "{{ atlas_zram_audit_commands }}"
+      loop_control:
+        label: "{{ item.label }}"
+
+    - name: Exibir origem persistente do zram
+      ansible.builtin.debug:
+        msg: |
+          === {{ item.item.label }} (rc={{ item.rc }}) ===
+          {{ item.stdout | default('') }}
+          {{ item.stderr | default('') }}
+      loop: "{{ atlas_zram_audit.results }}"
+      loop_control:
+        label: "{{ item.item.label }}"

@@ -1,0 +1,76 @@
+---
+- name: Auditar a configuracao manual do servidor AtlasLoL
+  hosts: atlas_server
+  become: true
+  gather_facts: true
+
+  vars:
+    atlas_audit_commands:
+      - label: Montagem do disco de dados
+        argv: [findmnt, -T, /mnt/dados]
+      - label: Entradas relevantes do fstab
+        argv: [grep, -n, /mnt/dados, /etc/fstab]
+      - label: Diretorios do Atlas no disco de dados
+        argv: [stat, --printf=%U:%G %a %n\\n, /mnt/dados, /mnt/dados/bronze]
+      - label: Configuracao efetiva de logind
+        argv: [systemctl, show, systemd-logind, --property=HandleLidSwitch, --property=HandleLidSwitchExternalPower, --property=HandleLidSwitchDocked]
+      - label: Configuracoes de logind gravadas em disco
+        argv: [grep, -R, -n, --include=*.conf, HandleLidSwitch, /etc/systemd/logind.conf, /etc/systemd/logind.conf.d]
+      - label: Dispositivos zram
+        argv: [zramctl]
+      - label: Swap ativo
+        argv: [swapon, --show]
+      - label: Parametros efetivos de memoria virtual
+        argv: [sysctl, vm.swappiness, vm.page-cluster, vm.vfs_cache_pressure]
+      - label: Arquivos sysctl relacionados a memoria
+        argv: [grep, -R, -n, --include=*.conf, -E, 'swappiness|page-cluster|vfs_cache_pressure', /etc/sysctl.conf, /etc/sysctl.d]
+      - label: Atualizacoes automaticas configuradas
+        argv: [grep, -R, -n, -E, 'Unattended-Upgrade|APT::Periodic', /etc/apt/apt.conf.d]
+      - label: Timers de atualizacao do sistema
+        argv: [systemctl, list-timers, apt-daily.timer, apt-daily-upgrade.timer, --all, --no-pager]
+      - label: Unit do coletor
+        argv: [systemctl, cat, atlas-collector.service]
+      - label: Timer do coletor
+        argv: [systemctl, cat, atlas-collector.timer]
+      - label: Estado do service do coletor
+        argv: [systemctl, is-enabled, atlas-collector.service]
+      - label: Estado do timer do coletor
+        argv: [systemctl, is-enabled, atlas-collector.timer]
+      - label: Runtime do coletor
+        argv: [/home/guilin/.local/bin/uv, --version]
+      - label: Repositorio do coletor
+        argv: [git, -C, /home/guilin/AtlasLoL, status, --short]
+      - label: Docker instalado
+        argv: [docker, --version]
+      - label: Grupos do usuario de operacao
+        argv: [id, guilin]
+      - label: Hardening SSH do AtlasLoL
+        argv: [cat, /etc/ssh/sshd_config.d/01-atlas-hardening.conf]
+
+  tasks:
+    - name: Mostrar identificacao do host
+      ansible.builtin.debug:
+        msg:
+          hostname: "{{ ansible_hostname }}"
+          distribuicao: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+          kernel: "{{ ansible_kernel }}"
+
+    - name: Coletar configuracao sem alterar o servidor
+      ansible.builtin.command:
+        argv: "{{ item.argv }}"
+      changed_when: false
+      failed_when: false
+      register: atlas_audit
+      loop: "{{ atlas_audit_commands }}"
+      loop_control:
+        label: "{{ item.label }}"
+
+    - name: Exibir resultado da auditoria
+      ansible.builtin.debug:
+        msg: |
+          === {{ item.item.label }} (rc={{ item.rc }}) ===
+          {{ item.stdout | default('') }}
+          {{ item.stderr | default('') }}
+      loop: "{{ atlas_audit.results }}"
+      loop_control:
+        label: "{{ item.item.label }}"

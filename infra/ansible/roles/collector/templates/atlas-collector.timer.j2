@@ -1,0 +1,10 @@
+[Unit]
+Description=Run AtlasLoL collector every hour
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=atlas-collector.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,27 @@
+---
+- name: Montar disco de dados do AtlasLoL por UUID
+  ansible.posix.mount:
+    path: "{{ atlas_data_mount }}"
+    src: "UUID={{ atlas_data_uuid }}"
+    fstype: ext4
+    opts: defaults,nofail,x-systemd.device-timeout=45
+    dump: "0"
+    passno: "2"
+    state: mounted
+
+- name: Garantir proprietario do volume de dados
+  ansible.builtin.file:
+    path: "{{ atlas_data_mount }}"
+    state: directory
+    owner: guilin
+    group: guilin
+    mode: "0755"
+
+- name: Criar diretorios de dados do AtlasLoL
+  ansible.builtin.file:
+    path: "{{ atlas_data_mount }}/{{ item }}"
+    state: directory
+    owner: guilin
+    group: guilin
+    mode: "0755"
+  loop: "{{ atlas_data_directories }}"

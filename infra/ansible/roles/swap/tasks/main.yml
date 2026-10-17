@@ -1,0 +1,56 @@
+---
+- name: Verificar arquivo de swap existente
+  ansible.builtin.stat:
+    path: "{{ atlas_swap_file }}"
+  register: atlas_swap_file_stat
+
+- name: Criar arquivo de swap no disco interno
+  ansible.builtin.command:
+    argv:
+      - fallocate
+      - --length
+      - "{{ atlas_swap_size_bytes }}"
+      - "{{ atlas_swap_file }}"
+  when: not atlas_swap_file_stat.stat.exists
+
+- name: Restringir acesso ao arquivo de swap
+  ansible.builtin.file:
+    path: "{{ atlas_swap_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Descobrir formato do arquivo de swap
+  ansible.builtin.command:
+    argv: [blkid, -o, value, -s, TYPE, "{{ atlas_swap_file }}"]
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: atlas_swap_type
+
+- name: Formatar arquivo como swap
+  ansible.builtin.command:
+    argv: [mkswap, "{{ atlas_swap_file }}"]
+  when: atlas_swap_type.stdout != 'swap'
+
+- name: Registrar swap no boot
+  ansible.posix.mount:
+    path: none
+    src: "{{ atlas_swap_file }}"
+    fstype: swap
+    opts: sw
+    dump: "0"
+    passno: "0"
+    state: present
+
+- name: Verificar swap ativo
+  ansible.builtin.command:
+    argv: [swapon, --show, --noheadings, --raw]
+  changed_when: false
+  check_mode: false
+  register: atlas_active_swap
+
+- name: Ativar swap quando necessario
+  ansible.builtin.command:
+    argv: [swapon, "{{ atlas_swap_file }}"]
+  when: atlas_swap_file not in atlas_active_swap.stdout

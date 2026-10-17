@@ -1,0 +1,8 @@
+---
+atlas_data_uuid: b1b39d70-2712-436b-a7b8-aa1e80a1c0a0
+atlas_data_mount: /mnt/dados
+atlas_data_directories:
+  - bronze
+  - parquet
+  - backups
+  - minio

@@ -1,0 +1,16 @@
+---
+- name: Convergir o servidor AtlasLoL
+  hosts: atlas_server
+  become: true
+  gather_facts: true
+
+  roles:
+    - access
+    - base
+    - zram
+    - swap
+    - storage
+    - docker
+    - updates
+    - runtime
+    - collector

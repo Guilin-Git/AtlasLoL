@@ -1,0 +1,11 @@
+---
+atlas_runtime_user: guilin
+atlas_runtime_home: /home/guilin
+atlas_runtime_repo: /home/guilin/AtlasLoL
+atlas_runtime_repo_url: https://github.com/Guilin-Git/AtlasLoL.git
+# Revisao que esta validada para executar o coletor no servidor.
+atlas_runtime_repo_revision: 07889030fc601573a50ba538a346ddc21064a694
+atlas_runtime_uv_version: 0.13.1
+atlas_runtime_uv: /home/guilin/.local/bin/uv
+atlas_runtime_uv_installer: /tmp/atlas-uv-{{ atlas_runtime_uv_version }}-install.sh
+atlas_runtime_uv_installer_url: https://astral.sh/uv/{{ atlas_runtime_uv_version }}/install.sh

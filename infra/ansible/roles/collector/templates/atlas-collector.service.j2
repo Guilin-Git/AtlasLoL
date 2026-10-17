@@ -1,0 +1,18 @@
+[Unit]
+Description=AtlasLoL Riot API collector
+Wants=network-online.target
+After=network-online.target
+RequiresMountsFor=/mnt/dados
+
+[Service]
+Type=oneshot
+User={{ atlas_collector_user }}
+Group={{ atlas_collector_group }}
+WorkingDirectory={{ atlas_collector_repo }}
+Environment=HOME=/home/{{ atlas_collector_user }}
+EnvironmentFile={{ atlas_collector_secret_file }}
+UMask=0077
+ExecStart={{ atlas_collector_uv }} run python collector/coletar_partidas.py "{{ atlas_riot_game_name }}" {{ atlas_riot_tag_line }} --count {{ atlas_collector_match_count }}
+
+[Install]
+WantedBy=multi-user.target

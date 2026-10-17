@@ -1,0 +1,38 @@
+---
+- name: Garantir suporte a atualizacoes automaticas
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Habilitar verificacao diaria de atualizacoes
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+- name: Manter timer diario de indice APT ativo
+  ansible.builtin.systemd_service:
+    name: apt-daily.timer
+    enabled: true
+    state: started
+
+- name: Manter timer diario de atualizacoes ativo
+  ansible.builtin.systemd_service:
+    name: apt-daily-upgrade.timer
+    enabled: true
+    state: started
+
+- name: Verificar se o servidor precisa de reboot
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: atlas_reboot_required
+
+- name: Informar pendencia de reboot
+  ansible.builtin.debug:
+    msg: "Reboot pendente: {{ atlas_reboot_required.stat.exists }}"

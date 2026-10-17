@@ -1,0 +1,47 @@
+---
+- name: Auditar swap em disco e runtime do coletor
+  hosts: atlas_server
+  become: true
+  gather_facts: false
+
+  vars:
+    atlas_runtime_audit_commands:
+      - label: fstab completo
+        argv: [cat, /etc/fstab]
+      - label: Metadados do arquivo de swap
+        argv: [stat, --printf=%n %s bytes %U:%G %a\\n, /swap.img]
+      - label: Swap ativo
+        argv: [swapon, --show, --bytes]
+      - label: Origem Git do coletor
+        argv: [git, -C, /home/guilin/AtlasLoL, remote, -v]
+      - label: Branch Git do coletor
+        argv: [git, -C, /home/guilin/AtlasLoL, branch, --show-current]
+      - label: Commit Git do coletor
+        argv: [git, -C, /home/guilin/AtlasLoL, rev-parse, HEAD]
+      - label: Estado Git do coletor
+        argv: [git, -C, /home/guilin/AtlasLoL, status, --porcelain]
+      - label: Binario uv do coletor
+        argv: [ls, -l, /home/guilin/.local/bin/uv]
+      - label: Versao uv do coletor
+        argv: [/home/guilin/.local/bin/uv, --version]
+
+  tasks:
+    - name: Coletar estado sem alterar o servidor
+      ansible.builtin.command:
+        argv: "{{ item.argv }}"
+      changed_when: false
+      failed_when: false
+      register: atlas_runtime_audit
+      loop: "{{ atlas_runtime_audit_commands }}"
+      loop_control:
+        label: "{{ item.label }}"
+
+    - name: Exibir estado auditado
+      ansible.builtin.debug:
+        msg: |
+          === {{ item.item.label }} (rc={{ item.rc }}) ===
+          {{ item.stdout | default('') }}
+          {{ item.stderr | default('') }}
+      loop: "{{ atlas_runtime_audit.results }}"
+      loop_control:
+        label: "{{ item.item.label }}"

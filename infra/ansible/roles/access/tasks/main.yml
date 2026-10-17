@@ -1,0 +1,36 @@
+---
+- name: Garantir usuario administrativo do AtlasLoL
+  ansible.builtin.user:
+    name: "{{ atlas_admin_user }}"
+    uid: "{{ atlas_admin_uid }}"
+    groups: "{{ atlas_admin_groups }}"
+    append: true
+    shell: "{{ atlas_admin_shell }}"
+    create_home: true
+    state: present
+
+- name: Autorizar chave SSH administrativa
+  ansible.posix.authorized_key:
+    user: "{{ atlas_admin_user }}"
+    key: "{{ lookup('ansible.builtin.file', role_path ~ '/files/guilin_authorized_key.pub') }}"
+    state: present
+    exclusive: false
+    manage_dir: true
+
+- name: Garantir servidor SSH instalado
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+
+- name: Proteger autenticacao SSH do AtlasLoL
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/01-atlas-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+  notify: Recarregar servico SSH
