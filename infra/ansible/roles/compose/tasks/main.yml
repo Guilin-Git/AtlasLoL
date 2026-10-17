@@ -1,0 +1,6 @@
+---
+- name: Executar teste controlado de limite de memoria do Compose
+  ansible.builtin.command:
+    argv: [/bin/bash, "{{ atlas_compose_project_dir }}/test-memory-limit.sh"]
+  when: atlas_compose_run_memory_probe | bool
+  changed_when: false

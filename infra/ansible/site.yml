@@ -13,4 +13,5 @@
     - docker
     - updates
     - runtime
+    - compose
     - collector

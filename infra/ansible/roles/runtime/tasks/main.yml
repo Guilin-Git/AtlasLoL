@@ -6,12 +6,12 @@
       - git
     state: present
 
-- name: Garantir repositorio do AtlasLoL na revisao validada
+- name: Sincronizar repositorio do AtlasLoL na revisao declarada
   ansible.builtin.git:
     repo: "{{ atlas_runtime_repo_url }}"
     dest: "{{ atlas_runtime_repo }}"
     version: "{{ atlas_runtime_repo_revision }}"
-    update: false
+    update: true
     force: false
   become_user: "{{ atlas_runtime_user }}"
 

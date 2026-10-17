@@ -1,7 +1,9 @@
 ---
-- name: Garantir que o Docker esteja instalado
+- name: Garantir Docker e plugin Compose instalados
   ansible.builtin.apt:
-    name: docker.io
+    name:
+      - docker.io
+      - docker-compose-v2
     state: present
     update_cache: true
     cache_valid_time: 3600

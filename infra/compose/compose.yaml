@@ -1,0 +1,18 @@
+name: atlaslol
+
+services:
+  memory-limit-probe:
+    image: python:3.12-alpine
+    profiles: [test]
+    restart: "no"
+    mem_limit: 100m
+    memswap_limit: 100m
+    cpus: "0.25"
+    pids_limit: 64
+    command:
+      - python
+      - -c
+      - |
+        blocks = []
+        while True:
+            blocks.append(bytearray(1024 * 1024))
