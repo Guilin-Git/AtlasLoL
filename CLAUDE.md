@@ -232,7 +232,7 @@ atlas/
 
 > **Mantenha esta seção atualizada. É o primeiro lugar que você deve olhar.**
 
-- **Passos em andamento:** PASSO 11 e PASSO 14
+- **Passo em andamento:** PASSO 11
   - `atlas-collector.service` e `atlas-collector.timer` configurados manualmente no servidor, como exige a etapa pedagógica anterior ao Ansible.
   - Timer horário habilitado e ativo; coleta manual, idempotência, coleta incremental e retorno após reboot já validados.
   - Período de observação de 48 horas ainda em andamento; não declarar o PASSO 11 concluído antes desse teste.
@@ -241,9 +241,11 @@ atlas/
   - O segredo da Riot é armazenado em `group_vars/atlas_server/vault.yml`, criptografado com Ansible Vault, e provisionado como `/etc/atlas/collector.env` com permissões restritas.
   - O runtime fixa a revisão validada do repositório e `uv 0.13.1`; o timer do coletor continua sob `systemd`.
   - Validação final: primeira convergência aplicou apenas o hardening SSH; a segunda reconectou por chave e encerrou com `ok=35`, `changed=0`, `failed=0` e `unreachable=0`.
-- **PASSO 14 em preparação:** Compose Specification em `infra/compose/` com perfil `test` e sonda de memória de 100 MiB; `core`, `ingest`, `lake`, `obs` e `ml` serão preenchidos somente quando os serviços correspondentes existirem.
-  - `docker-compose-v2` passa a ser requisito declarado na role `docker`; o runtime de desenvolvimento acompanha a branch `main` para receber configurações publicadas.
-  - ADR-004 registra perfis, orçamento e a proibição de rodar `lake` com `ml` no notebook atual.
+- **Último passo concluído:** PASSO 14 — base do Docker Compose e contenção de memória validada em 2026-10-17
+  - `docker-compose-v2` é requisito declarado na role `docker`; o runtime de desenvolvimento acompanha a branch `main` para receber configurações publicadas.
+  - A sonda do perfil `test` tentou exceder 100 MiB, foi encerrada pelo Docker (`exit 137` e `OOMKilled=true`) e limpou seus recursos isolados sem afetar o host ou o SSH.
+  - `core`, `ingest`, `lake`, `obs` e `ml` serão preenchidos somente quando os serviços correspondentes existirem nos passos seguintes; `lake` e `ml` continuam proibidos juntos no notebook atual.
+  - ADR-004 registra perfis, orçamento e essa decisão de implantação incremental.
 - **Último passo concluído:** PASSO 12 — primeiro playbook Ansible validado em 2026-10-17
   - Controlador: WSL do PC; host gerenciado: `atlaslol` (`192.168.3.6`) via SSH como `guilin`.
   - `infra/ansible/install-docker.yml` garantiu `docker.io` com o módulo idempotente `apt`.
