@@ -20,7 +20,7 @@ Cada passo tem sempre a mesma estrutura:
 ### As cinco regras do manual
 
 1. **Nunca duas coisas novas ao mesmo tempo.** Se você está aprendendo Terraform, use um serviço que já domina. Se está subindo um serviço novo, faça na mão primeiro.
-2. **O teste de aprendizado é obrigatório.** Se você não consegue responder, o passo não terminou — mesmo que funcione. Funcionar sem entender é o modo mais fácil de desperdiçar o projeto.
+2. **O teste de aprendizado orienta a revisão, mas não bloqueia o desenvolvimento.** A resposta deve ser explicada e registrada quando trouxer uma decisão relevante; não é necessário interromper o trabalho esperando uma resposta do usuário.
 3. **Não pule para a caixa seguinte por ansiedade.** A ordem foi otimizada para que cada peça tenha onde se encaixar. Pular gera retrabalho.
 4. **Cada decisão relevante gera um ADR** (arquivo curto: contexto, alternativas, escolha, consequências, o que me faria mudar de ideia). No fim, os ADRs valem mais que o código.
 5. **Se travar mais de duas sessões no mesmo ponto,** anote onde parou, pule para o passo seguinte que seja independente, e volte depois. Travar é normal; parar o projeto por travar não.

@@ -26,6 +26,7 @@ Critério de sucesso: não é "está funcionando", é "eu consigo explicar por q
 - **Aponte o erro que eu vou cometer**, em vez de silenciosamente evitá-lo por mim
 - **Me faça perguntas** quando houver mais de um caminho razoável. A escolha é minha, e vira ADR
 - **Discorde de mim** quando eu estiver errado. Não valide ideia ruim por educação
+- **Não bloqueie o desenvolvimento esperando respostas a testes de aprendizado.** Explique a resposta e continue; use o teste como revisão, não como portão manual.
 - **Se eu pedir algo que pula etapas do `MANUAL.md`, avise.** A ordem foi otimizada; pular gera retrabalho
 
 ### O que não fazer
@@ -231,8 +232,22 @@ atlas/
 
 > **Mantenha esta seção atualizada. É o primeiro lugar que você deve olhar.**
 
-- **Passo atual do MANUAL:** PASSO 9 — vocabulário de ETL (só leitura) e depois PASSO 10, o coletor mínimo
-- **Último passo concluído:** PASSO 8 — HD externo em `/mnt/dados`, ext4, montado por UUID
+- **Passos em andamento:** PASSO 11 e PASSO 13
+  - `atlas-collector.service` e `atlas-collector.timer` configurados manualmente no servidor, como exige a etapa pedagógica anterior ao Ansible.
+  - Timer horário habilitado e ativo; coleta manual, idempotência, coleta incremental e retorno após reboot já validados.
+  - Período de observação de 48 horas ainda em andamento; não declarar o PASSO 11 concluído antes desse teste.
+-  PASSO 13 pode avançar em paralelo: transformar a configuração manual do servidor em roles Ansible.
+- **Último passo concluído:** PASSO 12 — primeiro playbook Ansible validado em 2026-10-17
+  - Controlador: WSL do PC; host gerenciado: `atlaslol` (`192.168.3.6`) via SSH como `guilin`.
+  - `infra/ansible/install-docker.yml` garantiu `docker.io` com o módulo idempotente `apt`.
+  - Testes concluídos: instalação inicial (`changed=1`), segunda execução (`changed=0`), remoção manual seguida de reinstalação (`changed=1`) e simulação com `--check` (`changed=0`).
+  - Ubuntu 26.04 usa `sudo-rs`, incompatível com a detecção de prompt do Ansible Core 2.17; o inventário fixa `/usr/bin/sudo.ws` somente para `become`.
+- **Passo anterior:** PASSO 10 — coletor mínimo validado localmente em 2026-10-16
+  - Coletadas **20 partidas** e seus **20 timelines** em `bronze-local/`, todos como JSON bruto comprimido em zstd e particionado por patch.
+  - Idempotência validada: a primeira execução completou 15 itens pendentes e pulou 5 existentes; a segunda pulou as 20, sem novo download ou falha.
+  - Retomada após interrupção e escrita atômica são cobertas pela suíte offline; os 20 testes e o lint (`ruff`) passaram antes da coleta real.
+  - O bronze local é dado de desenvolvimento, ignorado pelo Git. O destino definitivo no servidor será `/mnt/dados/bronze`.
+- **Passo anterior:** PASSO 8 — HD externo em `/mnt/dados`, ext4, montado por UUID
   - `/etc/fstab`: `UUID=b1b39d70-2712-436b-a7b8-aa1e80a1c0a0 /mnt/dados ext4 defaults,nofail,x-systemd.device-timeout=45 0 2`
   - **O timeout de 45 s não é enfeite:** com 10 s a montagem falhava no boot. O `udev` leva mais de 15 s para criar o link em `/dev/disk/by-uuid/` depois que o kernel anexa o disco, porque HDD por USB 2.0 é lento para sondar
   - Spin-down desativado de forma persistente em `/etc/hdparm.conf`, referenciando o disco por `/dev/disk/by-id/usb-JMicron_Generic_DD202505051001-0:0`
@@ -261,10 +276,10 @@ atlas/
     - A gaveta é JMicron `152d:0578` (família JMS578, **capaz de USB 3.0**) e mesmo assim negociou `high-speed`. Provável limitação do cabo ou da porta usada — **vale testar uma porta azul antes de assumir 2.0 como teto**
     - Reporta `Disabling FUA` e `Write cache: enabled`: o sistema não consegue forçar escrita até o prato, e queda de energia pode perder dado já confirmado
   - **Bateria removida** em 2026-08-20 (ADR-021). Estava com 39% de desgaste e o kernel não expõe controle de carga. Consequência: **queda de energia agora é corte instantâneo**, sem desligamento gracioso. Próxima compra de infraestrutura é um **nobreak**
-- **Riot API:** usando **dev key** (expira em 24h, renovação manual com CAPTCHA). Personal key será solicitada mais tarde — decisão consciente.
-  - **Consequência:** o PASSO 11 (coleta automática por systemd timer) fica limitado até lá. **Não sugira agendamento que dependa de chave permanente.**
-  - Enquanto isso, a coleta é manual: colar a chave nova em `EnvironmentFile` e rodar uma sessão a cada 2–3 dias.
-- **Dado em disco:** nenhum
+- **Riot API:** usando **personal key**, com limite informado de 20 requisições por segundo e 100 por 2 minutos.
+  - O coletor usa ritmo conservador (~1,2 s entre inícios de requisição) e trata `429`, `503` e `Retry-After`.
+  - **PASSO 11 liberado:** a chave pode ser guardada em `EnvironmentFile` do systemd, fora do repositório, para coleta automática.
+- **Dado em disco:** na bancada local, 20 matches e 20 timelines em `bronze-local/`; no servidor, o timer já gravou a coleta inicial e incrementos em `/mnt/dados/bronze`.
 
 ---
 
