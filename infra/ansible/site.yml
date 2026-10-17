@@ -13,5 +13,6 @@
     - docker
     - updates
     - runtime
+    - postgres
     - compose
     - collector

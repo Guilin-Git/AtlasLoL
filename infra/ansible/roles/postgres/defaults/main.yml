@@ -1,0 +1,4 @@
+---
+atlas_postgres_compose_dir: /home/guilin/AtlasLoL/infra/compose
+atlas_postgres_secret_dir: /etc/atlas
+atlas_postgres_secret_file: /etc/atlas/postgres.env

@@ -1,6 +1,36 @@
 name: atlaslol
 
 services:
+  postgres:
+    image: postgres:17.11-alpine3.24
+    profiles: [core]
+    restart: unless-stopped
+    env_file:
+      - /etc/atlas/postgres.env
+    mem_limit: 384m
+    cpus: "0.75"
+    pids_limit: 128
+    ports:
+      - "192.168.3.6:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=20
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   memory-limit-probe:
     image: python:3.12-alpine
     profiles: [test]
@@ -16,3 +46,6 @@ services:
         blocks = []
         while True:
             blocks.append(bytearray(1024 * 1024))
+
+volumes:
+  postgres-data:
