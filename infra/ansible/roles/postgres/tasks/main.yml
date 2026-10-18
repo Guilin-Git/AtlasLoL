@@ -57,3 +57,74 @@
   ansible.builtin.debug:
     msg: "PostgreSQL nao iniciado: defina vault_postgres_password no Ansible Vault."
   when: not atlas_postgres_secret.stat.exists
+
+- name: Criar diretorio de backups do PostgreSQL
+  ansible.builtin.file:
+    path: "{{ atlas_postgres_backup_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Criar diretorio de scripts administrativos do AtlasLoL
+  ansible.builtin.file:
+    path: /usr/local/lib/atlas
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Instalar script de backup do PostgreSQL
+  ansible.builtin.template:
+    src: postgres-backup.sh.j2
+    dest: "{{ atlas_postgres_backup_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Instalar script de teste de restauracao do PostgreSQL
+  ansible.builtin.template:
+    src: postgres-backup-restore-test.sh.j2
+    dest: "{{ atlas_postgres_backup_test_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Instalar unit systemd do backup PostgreSQL
+  ansible.builtin.template:
+    src: atlas-postgres-backup.service.j2
+    dest: /etc/systemd/system/atlas-postgres-backup.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recarregar systemd do backup PostgreSQL
+
+- name: Instalar timer systemd do backup PostgreSQL
+  ansible.builtin.template:
+    src: atlas-postgres-backup.timer.j2
+    dest: /etc/systemd/system/atlas-postgres-backup.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Recarregar systemd do backup PostgreSQL
+    - Reiniciar timer do backup PostgreSQL
+
+- name: Recarregar systemd antes de habilitar timer do backup
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Habilitar timer diario do backup PostgreSQL
+  ansible.builtin.systemd_service:
+    name: atlas-postgres-backup.timer
+    enabled: true
+    state: started
+  when: atlas_postgres_secret.stat.exists
+
+- name: Testar backup e restauracao do PostgreSQL sob demanda
+  ansible.builtin.command:
+    argv: ["{{ atlas_postgres_backup_test_script }}"]
+  changed_when: false
+  when:
+    - atlas_postgres_secret.stat.exists
+    - atlas_postgres_run_backup_restore_test | bool

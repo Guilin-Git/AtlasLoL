@@ -2,3 +2,7 @@
 atlas_postgres_compose_dir: /home/guilin/AtlasLoL/infra/compose
 atlas_postgres_secret_dir: /etc/atlas
 atlas_postgres_secret_file: /etc/atlas/postgres.env
+atlas_postgres_backup_dir: /mnt/dados/backups/postgres
+atlas_postgres_backup_script: /usr/local/lib/atlas/postgres-backup.sh
+atlas_postgres_backup_test_script: /usr/local/lib/atlas/postgres-backup-restore-test.sh
+atlas_postgres_run_backup_restore_test: false

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+"{{ atlas_postgres_backup_script }}"
+
+backup_file="$(find "{{ atlas_postgres_backup_dir }}" -maxdepth 1 -type f -name 'atlas-*.dump' -printf '%T@ %p\n' | sort -n | tail -n 1 | cut -d' ' -f2-)"
+test -n "$backup_file"
+
+restore_db="atlas_restore_check_$(date +%s)"
+compose=(/usr/bin/docker compose --project-directory "{{ atlas_postgres_compose_dir }}" --profile core)
+
+cleanup() {
+  "${compose[@]}" exec -T postgres dropdb --if-exists --username atlas_app "$restore_db" || true
+}
+trap cleanup EXIT
+
+"${compose[@]}" exec -T postgres createdb --username atlas_app "$restore_db"
+"${compose[@]}" exec -T postgres pg_restore --username atlas_app --dbname "$restore_db" < "$backup_file"
+
+restored_name="$("${compose[@]}" exec -T postgres psql --username atlas_app --dbname "$restore_db" -Atc 'SELECT current_database()')"
+test "$restored_name" = "$restore_db"
+
+printf 'Backup restaurado e validado em banco temporario: %s\n' "$restore_db"

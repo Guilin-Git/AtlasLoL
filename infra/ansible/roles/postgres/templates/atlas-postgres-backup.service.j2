@@ -1,0 +1,12 @@
+[Unit]
+Description=AtlasLoL PostgreSQL logical backup
+Requires=docker.service
+After=docker.service
+RequiresMountsFor=/mnt/dados
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart={{ atlas_postgres_backup_script }}

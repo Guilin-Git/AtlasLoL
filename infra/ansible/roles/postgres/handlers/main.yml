@@ -1,0 +1,9 @@
+---
+- name: Recarregar systemd do backup PostgreSQL
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Reiniciar timer do backup PostgreSQL
+  ansible.builtin.systemd_service:
+    name: atlas-postgres-backup.timer
+    state: restarted

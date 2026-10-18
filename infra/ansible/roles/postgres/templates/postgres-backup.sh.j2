@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+backup_dir="{{ atlas_postgres_backup_dir }}"
+timestamp="$(date --utc +%Y%m%dT%H%M%SZ)"
+temporary_file="$(mktemp "${backup_dir}/.atlas-${timestamp}.XXXXXX")"
+final_file="${backup_dir}/atlas-${timestamp}.dump"
+
+cleanup() {
+  rm -f "$temporary_file"
+}
+trap cleanup EXIT
+
+/usr/bin/docker compose --project-directory "{{ atlas_postgres_compose_dir }}" --profile core \
+  exec -T postgres pg_dump --username atlas_app --format=custom atlas > "$temporary_file"
+
+test -s "$temporary_file"
+mv "$temporary_file" "$final_file"
+trap - EXIT
+
+find "$backup_dir" -type f -name 'atlas-*.dump' -mtime +14 -delete
+printf 'Backup PostgreSQL criado: %s\n' "$final_file"
