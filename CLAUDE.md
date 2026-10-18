@@ -232,10 +232,10 @@ atlas/
 
 > **Mantenha esta seção atualizada. É o primeiro lugar que você deve olhar.**
 
-- **Passo em andamento:** PASSO 11
-  - `atlas-collector.service` e `atlas-collector.timer` configurados manualmente no servidor, como exige a etapa pedagógica anterior ao Ansible.
-  - Timer horário habilitado e ativo; coleta manual, idempotência, coleta incremental e retorno após reboot já validados.
-  - Período de observação de 48 horas ainda em andamento; não declarar o PASSO 11 concluído antes desse teste.
+- **Passo em andamento:** PASSO 16 — FastAPI, migrations e log estruturado
+  - Fundação local preparada em `api/`: FastAPI, `GET /health`, SQLAlchemy/psycopg, Alembic e log JSON com `X-Correlation-ID`.
+  - Testes unitários cobrem a resposta saudável e a indisponibilidade do banco; nenhuma tabela de domínio foi criada ainda.
+  - Restam definir a primeira tabela e sua migration manual, aplicar/reverter/reaplicar no PostgreSQL e publicar a API no perfil `core` com um único worker.
 - **Último passo concluído:** PASSO 15 — PostgreSQL ajustado e recuperável em 2026-10-18
   - Serviço `postgres:17.11-alpine3.24` no perfil `core`, com `mem_limit=384m`, `shared_buffers=128MB`, `work_mem=4MB` e `max_connections=20`; dados persistem no volume Docker do disco interno.
   - Credencial do banco vive somente no Ansible Vault e é provisionada em `/etc/atlas/postgres.env` com permissões restritas.
