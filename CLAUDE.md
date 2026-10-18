@@ -236,6 +236,11 @@ atlas/
   - `atlas-collector.service` e `atlas-collector.timer` configurados manualmente no servidor, como exige a etapa pedagógica anterior ao Ansible.
   - Timer horário habilitado e ativo; coleta manual, idempotência, coleta incremental e retorno após reboot já validados.
   - Período de observação de 48 horas ainda em andamento; não declarar o PASSO 11 concluído antes desse teste.
+- **Último passo concluído:** PASSO 15 — PostgreSQL ajustado e recuperável em 2026-10-18
+  - Serviço `postgres:17.11-alpine3.24` no perfil `core`, com `mem_limit=384m`, `shared_buffers=128MB`, `work_mem=4MB` e `max_connections=20`; dados persistem no volume Docker do disco interno.
+  - Credencial do banco vive somente no Ansible Vault e é provisionada em `/etc/atlas/postgres.env` com permissões restritas.
+  - Backup lógico diário é agendado por `atlas-postgres-backup.timer`, gravado em `/mnt/dados/backups/postgres`, com retenção de 14 dias; backup e restauração em banco temporário foram validados.
+  - O PC conectou diretamente pela Wi-Fi `Guilin-Homelab` a `192.168.3.6:5432` como `atlas_app`, executou DDL/DML/consulta e removeu a tabela de teste. Não há port-forward para PostgreSQL.
 - **Último passo concluído:** PASSO 13 — playbook de reconstrução do servidor validado em 2026-10-17
   - `infra/ansible/site.yml` reúne roles para acesso SSH, logind, memória/zram, swap, disco de dados, Docker, atualizações automáticas, runtime e coletor.
   - O segredo da Riot é armazenado em `group_vars/atlas_server/vault.yml`, criptografado com Ansible Vault, e provisionado como `/etc/atlas/collector.env` com permissões restritas.

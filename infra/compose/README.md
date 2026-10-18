@@ -14,10 +14,10 @@ deve declarar `mem_limit`; o notebook-servidor tem cerca de 3,2 GiB de RAM
 | `obs` | Prometheus, Grafana e Loki | 900 MiB |
 | `ml` | treino de modelos | 1,5 GiB+ |
 
-Os perfis só receberão serviços quando estes forem implementados nos passos
-correspondentes. Não há placeholders para Postgres, API, NATS ou MinIO: subir
-uma imagem sem configuração real esconderia decisões que pertencem aos passos
-15, 16, 20 e 30.
+O perfil `core` já possui o PostgreSQL do PASSO 15. A API entrará nele no PASSO
+16. Os demais perfis receberão serviços quando estes forem implementados nos
+passos correspondentes; não há placeholders para API, NATS ou MinIO, porque
+subir uma imagem sem configuração real esconderia decisões futuras.
 
 ## Teste de contenção de memória
 
