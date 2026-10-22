@@ -234,9 +234,9 @@ atlas/
 
 - **Passo em andamento:** PASSO 16 — FastAPI, migrations e log estruturado
   - Fundação local preparada em `api/`: FastAPI, `GET /health`, SQLAlchemy/psycopg, Alembic e log JSON com `X-Correlation-ID`.
-  - O modelo de identidade está documentado em `docs/modelo-identidade.md` e ADR-022: `app_users` é separado de e-mails, métodos de login e contas Riot.
+  - O modelo de identidade está documentado em `docs/modelo-identidade.md` e ADR-022: `app_users` é separado de e-mails, métodos de login e do catálogo público `riot_accounts`; o dashboard apenas vincula uma conta Riot a um usuário.
   - Testes unitários cobrem a resposta saudável e a indisponibilidade do banco; nenhuma tabela de domínio foi criada ainda.
-  - Resta criar a migration manual de `app_users`, `user_emails` e `auth_identities`, aplicar/reverter/reaplicar no PostgreSQL e publicar a API no perfil `core` com um único worker.
+  - Resta criar a migration manual de `app_users`, `user_emails`, `auth_identities`, `riot_accounts` e `user_riot_account_links`, aplicar/reverter/reaplicar no PostgreSQL e publicar a API no perfil `core` com um único worker.
 - **Último passo concluído:** PASSO 15 — PostgreSQL ajustado e recuperável em 2026-10-18
   - Serviço `postgres:17.11-alpine3.24` no perfil `core`, com `mem_limit=384m`, `shared_buffers=128MB`, `work_mem=4MB` e `max_connections=20`; dados persistem no volume Docker do disco interno.
   - Credencial do banco vive somente no Ansible Vault e é provisionada em `/etc/atlas/postgres.env` com permissões restritas.

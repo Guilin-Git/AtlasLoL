@@ -127,7 +127,66 @@ que uma credencial seja associada a uma identidade cujo `issuer` não seja
 5. Remoção de identidade: só é permitida se restar outro método de login ativo.
    A regra evita bloquear o próprio usuário fora da conta.
 
-## Sessões, autorização e dados Riot: deliberadamente posteriores
+## Contas Riot pesquisáveis e vínculos pessoais
+
+Uma busca por Riot ID é pública e não depende de haver uma conta Atlas. Ao
+receber `gameName#tagLine` e a plataforma escolhida, a API resolve o PUUID na
+Riot, cria ou atualiza a conta no nosso catálogo e devolve seu perfil. O PUUID
+é a chave estável; Riot ID é a forma humana de encontrá-la e pode mudar.
+
+### `riot_accounts`
+
+| Coluna | Tipo | Regra | Motivo |
+|---|---|---|---|
+| `id` | `uuid` | PK | Identificador interno para relações do produto. |
+| `puuid` | `text` | obrigatório, único | Identificador estável devolvido pela Riot e usado para partidas. |
+| `game_name` | `text` | nulo | Riot ID observado mais recentemente; não é chave. |
+| `tag_line` | `text` | nulo | Parte observada mais recentemente do Riot ID; não é chave. |
+| `current_platform` | `text` | nulo | Plataforma atual para endpoints de League, por exemplo `BR1`. |
+| `first_seen_at` | `timestamptz` | obrigatório | Quando Atlas conheceu a conta. |
+| `last_refreshed_at` | `timestamptz` | nulo | Permite aplicar cache e evitar chamadas Riot desnecessárias. |
+| `created_at` | `timestamptz` | obrigatório | Auditoria. |
+| `updated_at` | `timestamptz` | obrigatório | Auditoria. |
+
+Restrições e índices:
+
+- `UNIQUE (puuid)` é a identidade canônica no catálogo;
+- índice de busca em `(lower(game_name), lower(tag_line))`; ele acelera
+  resultados já conhecidos, mas não substitui a resolução oficial na Riot;
+- `current_platform` não participa de identidade: uma transferência pode
+  atualizá-la sem criar outra conta;
+- o histórico de Riot IDs será uma tabela futura (`riot_id_observations`) se a
+  experiência exigir mostrar renomes. Não vale armazenar histórico antes de
+  haver essa funcionalidade.
+
+### `user_riot_account_links`
+
+| Coluna | Tipo | Regra | Motivo |
+|---|---|---|---|
+| `user_id` | `uuid` | FK para `app_users(id)` | Dono da coleção pessoal. |
+| `riot_account_id` | `uuid` | FK para `riot_accounts(id)` | Perfil Riot fixado ou escolhido pela pessoa. |
+| `link_kind` | `text` | obrigatório, padrão `self_reported` | Explicita a intenção: conta declarada como própria, favorita ou outro uso futuro. |
+| `is_default` | `boolean` | obrigatório, padrão `false` | Define a conta aberta no dashboard pessoal. |
+| `verified_at` | `timestamptz` | nulo | Só é preenchido por método de comprovação real. |
+| `verification_method` | `text` | nulo | Registra como a verificação ocorreu, sem assumir que ela existe hoje. |
+| `created_at` | `timestamptz` | obrigatório | Auditoria. |
+
+Chave e índices:
+
+- `PRIMARY KEY (user_id, riot_account_id)`: a mesma conta aparece uma vez na
+  coleção de cada usuário;
+- índice único parcial em `user_id WHERE is_default`: somente uma conta padrão
+  por usuário;
+- várias pessoas podem fixar a mesma conta pública; isso não cria cópias de
+  partidas nem de estatísticas.
+
+**Importante:** digitar um Riot ID ou buscá-lo não prova propriedade. No início,
+o produto chamará isso de “adicionar ao meu dashboard” ou “conta declarada”.
+`verified_at` só poderá ser usado se adotarmos um mecanismo Riot de autorização
+apropriado e permitido para o produto. A chave pessoal da Riot autoriza nossa
+aplicação a consultar a API; ela não autentica o jogador final.
+
+## Sessões e autorização: deliberadamente posteriores
 
 As tabelas abaixo não entrarão na primeira migration porque ainda não há fluxo
 que as use. O desenho já prevê seus vínculos para evitar retrabalho.
@@ -136,19 +195,20 @@ que as use. O desenho já prevê seus vínculos para evitar retrabalho.
 |---|---|---|
 | Sessão | `auth_sessions` | Cookie/ticket opaco no cliente; somente o hash do token fica no banco, com expiração e revogação. Se Cognito for o emissor definitivo de sessão, essa tabela pode não ser necessária. |
 | Autorização | `roles`, `user_roles` | Papéis são dados, não uma coluna booleana `is_admin`; ownership de recursos continua por `user_id`. |
-| Riot | `riot_accounts`, `user_riot_accounts` | Partidas se associarão ao `puuid` de `riot_accounts`, não a `app_users`; pro players não precisam ser usuários Atlas. |
 | Recuperação/verificação | `auth_action_tokens` | Tokens de uso único serão guardados somente como hash, com propósito, expiração e consumo. |
 
 ## Ordem de implementação
 
-1. Migration manual: `app_users`, `user_emails` e `auth_identities`, com os
-   índices e constraints deste documento.
+1. Migration manual: `app_users`, `user_emails`, `auth_identities`,
+   `riot_accounts` e `user_riot_account_links`, com os índices e constraints
+   deste documento.
 2. Teste Alembic: `upgrade` → `downgrade` → `upgrade`, sem dados de domínio.
 3. Endpoints internos de leitura de usuário, ainda sem login público.
 4. Escolher e implementar o emissor de autenticação e as sessões.
 5. Adicionar `password_credentials` somente junto com rate limit, mensagens
    genéricas de erro, recuperação de senha e envio/verificação de e-mail.
-6. Modelar `riot_accounts` antes de persistir partidas processadas.
+6. Adicionar histórico de Riot IDs e dados processados de partidas quando as
+   consultas precisarem deles.
 
 O objetivo não é impedir migrations futuras. É garantir que as próximas sejam
 aditivas e localizadas, em vez de exigirem renomear a base inteira por confundir

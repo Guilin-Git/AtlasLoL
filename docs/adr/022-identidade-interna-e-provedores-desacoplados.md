@@ -32,8 +32,12 @@ login será uma linha em `auth_identities`, identificada unicamente por
 `(issuer, subject)`. E-mails ficam em `user_emails`; senha, se existir, fica
 em `password_credentials`, com hash Argon2id.
 
-Contas Riot serão modeladas posteriormente como outro domínio, ligável a um
-usuário por tabela de associação, mas independente dele.
+`riot_accounts` será o catálogo global de perfis pesquisáveis, identificado por
+PUUID, e `user_riot_account_links` será a coleção pessoal de cada usuário. Uma
+busca pública não exige login e várias pessoas podem apontar para a mesma conta
+Riot. Adicionar um Riot ID ao dashboard não constitui prova de propriedade;
+verificação só será marcada quando houver um mecanismo Riot de autorização
+apropriado e permitido.
 
 O banco não armazenará secrets de OAuth nem tokens de acesso de provedores sem
 necessidade explícita. A escolha entre autenticação local e um serviço gerido,
@@ -53,6 +57,8 @@ O desenho completo está em [`docs/modelo-identidade.md`](../modelo-identidade.m
 - Login por senha só será entregue com controles próprios: hash lento,
   verificação de e-mail, recuperação, rate limit e mensagens que não enumeram
   usuários.
+- Perfil Riot público e usuário Atlas não são a mesma entidade: pro players,
+  coortes e contas pesquisadas existem no catálogo sem exigirem login no Atlas.
 
 ## Gatilho de revisão
 
