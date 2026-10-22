@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import os
-
 from alembic import context
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
+from api.atlas_api.config import Settings
+
 load_dotenv()
 config = context.config
-database_url = os.getenv("ATLAS_DATABASE_URL")
+database_url = Settings.from_environment().database_url
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 
