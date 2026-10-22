@@ -4,6 +4,7 @@ FROM python:3.12.3-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/api \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
@@ -23,4 +24,4 @@ USER atlas
 
 EXPOSE 8000
 
-CMD ["/app/.venv/bin/uvicorn", "api.atlas_api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["/app/.venv/bin/uvicorn", "atlas_api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

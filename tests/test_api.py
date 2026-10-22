@@ -72,7 +72,7 @@ def test_consulta_conta_riot_por_puuid(monkeypatch) -> None:
 def test_configura_url_de_componentes_sem_expor_senha(monkeypatch) -> None:
     monkeypatch.delenv("ATLAS_DATABASE_URL", raising=False)
     monkeypatch.setenv("ATLAS_DATABASE_USER", "atlas_app")
-    monkeypatch.setenv("ATLAS_DATABASE_PASSWORD", "senha@com:simbolos")
+    monkeypatch.setenv("ATLAS_DATABASE_PASSWORD", "senha%com*simbolos")
     monkeypatch.setenv("ATLAS_DATABASE_HOST", "postgres")
     monkeypatch.setenv("ATLAS_DATABASE_PORT", "5432")
     monkeypatch.setenv("ATLAS_DATABASE_NAME", "atlas")
@@ -82,5 +82,5 @@ def test_configura_url_de_componentes_sem_expor_senha(monkeypatch) -> None:
     assert database_url is not None
     parsed = make_url(database_url)
     assert parsed.username == "atlas_app"
-    assert parsed.password == "senha@com:simbolos"
+    assert parsed.password == "senha%com*simbolos"
     assert parsed.host == "postgres"
