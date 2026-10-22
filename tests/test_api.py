@@ -1,6 +1,18 @@
+from datetime import UTC, datetime
+from uuid import UUID
+
 from fastapi.testclient import TestClient
 
 from api.atlas_api import main
+
+CONTA_RIOT = {
+    "id": UUID("00000000-0000-0000-0000-000000000001"),
+    "puuid": "puuid-teste",
+    "game_name": "Like Bruce Wayne",
+    "tag_line": "Ligui",
+    "current_platform": "BR1",
+    "last_refreshed_at": datetime(2026, 10, 22, tzinfo=UTC),
+}
 
 
 def test_health_retorna_sucesso_e_correlation_id(monkeypatch) -> None:
@@ -22,3 +34,34 @@ def test_health_indica_banco_indisponivel(monkeypatch) -> None:
 
     assert response.status_code == 503
     assert response.json()["detail"]["database"] == "unavailable"
+
+
+def test_busca_conta_riot_no_catalogo(monkeypatch) -> None:
+    monkeypatch.setattr(main, "buscar_conta_riot", lambda *_args, **_kwargs: CONTA_RIOT)
+
+    response = TestClient(main.app).get(
+        "/riot-accounts/search?game_name=Like%20Bruce%20Wayne&tag_line=Ligui"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["puuid"] == "puuid-teste"
+    assert response.json()["current_platform"] == "BR1"
+
+
+def test_busca_conta_riot_ausente_retorna_404(monkeypatch) -> None:
+    monkeypatch.setattr(main, "buscar_conta_riot", lambda *_args, **_kwargs: None)
+
+    response = TestClient(main.app).get(
+        "/riot-accounts/search?game_name=Inexistente&tag_line=BR1"
+    )
+
+    assert response.status_code == 404
+
+
+def test_consulta_conta_riot_por_puuid(monkeypatch) -> None:
+    monkeypatch.setattr(main, "obter_conta_riot", lambda *_args, **_kwargs: CONTA_RIOT)
+
+    response = TestClient(main.app).get("/riot-accounts/puuid-teste")
+
+    assert response.status_code == 200
+    assert response.json()["game_name"] == "Like Bruce Wayne"
