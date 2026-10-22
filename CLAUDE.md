@@ -239,7 +239,7 @@ atlas/
   - Migration Alembic `20261022_001` para `app_users`, `user_emails`, `auth_identities`, `riot_accounts` e `user_riot_account_links` foi validada em 2026-10-22: `upgrade` → `downgrade base` → `upgrade`, terminando em `20261022_001 (head)` no PostgreSQL do servidor.
   - API executada localmente em 2026-10-22 com Uvicorn; `GET /health` respondeu `status=ok` e `database=ok` contra o PostgreSQL do servidor. A documentação interativa em `/docs` também foi verificada.
   - Endpoints de leitura do catálogo local existem: busca por Riot ID e consulta por PUUID; eles não chamam a Riot API por requisição e retornam 404 enquanto a conta não estiver catalogada.
-  - A implantação da API está declarada: imagem `api/Dockerfile`, serviço `api` no perfil `core`, `mem_limit=256m`, um worker Uvicorn, healthcheck HTTP e segredo `/etc/atlas/api.env` provisionado pelo Ansible. Falta aplicar o playbook no servidor e validar pela rede local.
+  - API implantada e validada no servidor em 2026-10-22: imagem `api/Dockerfile`, serviço `api` no perfil `core`, `mem_limit=256m`, um worker Uvicorn, healthcheck HTTP e segredo `/etc/atlas/api.env` provisionado pelo Ansible. A migration foi aplicada e `GET /health` respondeu `{"status":"ok","database":"ok"}` pela rede local.
   - Resta popular o catálogo com rate limit coordenado.
 - **Último passo concluído:** PASSO 15 — PostgreSQL ajustado e recuperável em 2026-10-18
   - Serviço `postgres:17.11-alpine3.24` no perfil `core`, com `mem_limit=384m`, `shared_buffers=128MB`, `work_mem=4MB` e `max_connections=20`; dados persistem no volume Docker do disco interno.
