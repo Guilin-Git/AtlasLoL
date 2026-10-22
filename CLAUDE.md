@@ -236,7 +236,8 @@ atlas/
   - Fundação local preparada em `api/`: FastAPI, `GET /health`, SQLAlchemy/psycopg, Alembic e log JSON com `X-Correlation-ID`.
   - O modelo de identidade está documentado em `docs/modelo-identidade.md` e ADR-022: `app_users` é separado de e-mails, métodos de login e do catálogo público `riot_accounts`; o dashboard apenas vincula uma conta Riot a um usuário.
   - Testes unitários cobrem a resposta saudável e a indisponibilidade do banco; nenhuma tabela de domínio foi criada ainda.
-  - Migration Alembic `20261022_001` criada para `app_users`, `user_emails`, `auth_identities`, `riot_accounts` e `user_riot_account_links`; falta validar aplicar/reverter/reaplicar no PostgreSQL e publicar a API no perfil `core` com um único worker.
+  - Migration Alembic `20261022_001` para `app_users`, `user_emails`, `auth_identities`, `riot_accounts` e `user_riot_account_links` foi validada em 2026-10-22: `upgrade` → `downgrade base` → `upgrade`, terminando em `20261022_001 (head)` no PostgreSQL do servidor.
+  - Restam endpoints de leitura, execução local da API e publicação no perfil `core` com um único worker.
 - **Último passo concluído:** PASSO 15 — PostgreSQL ajustado e recuperável em 2026-10-18
   - Serviço `postgres:17.11-alpine3.24` no perfil `core`, com `mem_limit=384m`, `shared_buffers=128MB`, `work_mem=4MB` e `max_connections=20`; dados persistem no volume Docker do disco interno.
   - Credencial do banco vive somente no Ansible Vault e é provisionada em `/etc/atlas/postgres.env` com permissões restritas.
