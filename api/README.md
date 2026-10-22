@@ -23,3 +23,9 @@ Esta pasta contém a API FastAPI e as migrations do PostgreSQL.
 O endereço do banco usa `ATLAS_DATABASE_URL`. Ele fica no `.env` local ou,
 no servidor, em um arquivo de segredo provisionado pelo Ansible. A senha nunca
 entra neste README, no compose ou no Git.
+
+No container, o Ansible fornece os componentes `ATLAS_DATABASE_HOST`,
+`ATLAS_DATABASE_PORT`, `ATLAS_DATABASE_NAME`, `ATLAS_DATABASE_USER` e
+`ATLAS_DATABASE_PASSWORD` em `/etc/atlas/api.env`. A aplicacao os transforma
+em URL internamente, para que uma senha com caracteres especiais nao quebre a
+configuracao.

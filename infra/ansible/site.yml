@@ -14,5 +14,6 @@
     - updates
     - runtime
     - postgres
+    - api
     - compose
     - collector

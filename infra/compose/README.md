@@ -1,5 +1,10 @@
 # Docker Compose do AtlasLoL
 
+O perfil `core` contem PostgreSQL e API. A API e construida do repositorio,
+recebe sua conexao por `/etc/atlas/api.env`, tem um unico worker Uvicorn e
+limite de 256 MiB. Ela publica HTTP somente em `192.168.3.6:8000`, a rede
+local do homelab; nenhuma regra de port-forward no roteador e criada.
+
 Este diretório concentra os serviços em contêiner do AtlasLoL. Cada serviço
 deve declarar `mem_limit`; o notebook-servidor tem cerca de 3,2 GiB de RAM
 útil e não pode depender do OOM killer do host como mecanismo de contenção.

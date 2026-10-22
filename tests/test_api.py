@@ -2,8 +2,10 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi.testclient import TestClient
+from sqlalchemy.engine import make_url
 
 from api.atlas_api import main
+from api.atlas_api.config import Settings
 
 CONTA_RIOT = {
     "id": UUID("00000000-0000-0000-0000-000000000001"),
@@ -65,3 +67,20 @@ def test_consulta_conta_riot_por_puuid(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["game_name"] == "Like Bruce Wayne"
+
+
+def test_configura_url_de_componentes_sem_expor_senha(monkeypatch) -> None:
+    monkeypatch.delenv("ATLAS_DATABASE_URL", raising=False)
+    monkeypatch.setenv("ATLAS_DATABASE_USER", "atlas_app")
+    monkeypatch.setenv("ATLAS_DATABASE_PASSWORD", "senha@com:simbolos")
+    monkeypatch.setenv("ATLAS_DATABASE_HOST", "postgres")
+    monkeypatch.setenv("ATLAS_DATABASE_PORT", "5432")
+    monkeypatch.setenv("ATLAS_DATABASE_NAME", "atlas")
+
+    database_url = Settings.from_environment().database_url
+
+    assert database_url is not None
+    parsed = make_url(database_url)
+    assert parsed.username == "atlas_app"
+    assert parsed.password == "senha@com:simbolos"
+    assert parsed.host == "postgres"

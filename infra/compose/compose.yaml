@@ -31,6 +31,34 @@ services:
       retries: 12
       start_period: 20s
 
+  api:
+    image: atlaslol-api:local
+    build:
+      context: ../..
+      dockerfile: api/Dockerfile
+    profiles: [core]
+    restart: unless-stopped
+    env_file:
+      - /etc/atlas/api.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 256m
+    cpus: "0.50"
+    pids_limit: 128
+    ports:
+      - "192.168.3.6:8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
   memory-limit-probe:
     image: python:3.12-alpine
     profiles: [test]

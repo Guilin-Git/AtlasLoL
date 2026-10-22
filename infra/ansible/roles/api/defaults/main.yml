@@ -1,0 +1,5 @@
+---
+atlas_api_compose_dir: /home/guilin/AtlasLoL/infra/compose
+atlas_api_secret_dir: /etc/atlas
+atlas_api_secret_file: /etc/atlas/api.env
+atlas_api_service: api

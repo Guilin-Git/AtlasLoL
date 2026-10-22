@@ -1,0 +1,90 @@
+---
+- name: Criar diretorio de segredos da API
+  ansible.builtin.file:
+    path: "{{ atlas_api_secret_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Provisionar segredo de conexao da API a partir do Ansible Vault
+  ansible.builtin.template:
+    src: api.env.j2
+    dest: "{{ atlas_api_secret_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  diff: false
+  when: vault_postgres_password is defined
+
+- name: Verificar se o segredo da API foi provisionado
+  ansible.builtin.stat:
+    path: "{{ atlas_api_secret_file }}"
+  register: atlas_api_secret
+
+- name: Construir imagem da API
+  ansible.builtin.command:
+    argv: [/usr/bin/docker, compose, --profile, core, build, "{{ atlas_api_service }}"]
+  args:
+    chdir: "{{ atlas_api_compose_dir }}"
+  changed_when: false
+  when: atlas_api_secret.stat.exists
+
+- name: Aplicar migrations da API antes de iniciar o servico
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - compose
+      - --profile
+      - core
+      - run
+      - --rm
+      - --no-deps
+      - "{{ atlas_api_service }}"
+      - alembic
+      - -c
+      - api/alembic.ini
+      - upgrade
+      - head
+  args:
+    chdir: "{{ atlas_api_compose_dir }}"
+  changed_when: false
+  when: atlas_api_secret.stat.exists
+
+- name: Iniciar API quando o segredo estiver disponivel
+  ansible.builtin.command:
+    argv: [/usr/bin/docker, compose, --profile, core, up, -d, "{{ atlas_api_service }}"]
+  args:
+    chdir: "{{ atlas_api_compose_dir }}"
+  changed_when: false
+  when: atlas_api_secret.stat.exists
+
+- name: Obter identificador do container da API
+  ansible.builtin.command:
+    argv: [/usr/bin/docker, compose, ps, -q, "{{ atlas_api_service }}"]
+  args:
+    chdir: "{{ atlas_api_compose_dir }}"
+  changed_when: false
+  when: atlas_api_secret.stat.exists
+  register: atlas_api_container
+
+- name: Aguardar healthcheck da API
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/docker
+      - inspect
+      - --format
+      - "{{ '{{' }}.State.Health.Status{{ '}}' }}"
+      - "{{ atlas_api_container.stdout }}"
+  changed_when: false
+  when: atlas_api_secret.stat.exists
+  register: atlas_api_health
+  until: atlas_api_health.stdout == 'healthy'
+  retries: 18
+  delay: 5
+
+- name: Informar segredo ausente sem iniciar API
+  ansible.builtin.debug:
+    msg: "API nao iniciada: defina vault_postgres_password no Ansible Vault."
+  when: not atlas_api_secret.stat.exists
