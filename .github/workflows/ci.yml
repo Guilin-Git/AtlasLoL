@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Instalar dependencias fixadas
+        run: uv sync --locked --dev
+
+      - name: Executar lint
+        run: uv run --locked ruff check collector api tests
+
+  test:
+    name: test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Instalar dependencias fixadas
+        run: uv sync --locked --dev
+
+      - name: Executar testes
+        run: uv run --locked pytest -q
+
+  build-api:
+    name: build-api
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Construir imagem da API
+        run: docker build --file api/Dockerfile --tag atlaslol-api:ci .
