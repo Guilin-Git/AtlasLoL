@@ -42,7 +42,7 @@
       - --rm
       - --no-deps
       - "{{ atlas_api_service }}"
-      - alembic
+      - /app/.venv/bin/alembic
       - -c
       - api/alembic.ini
       - upgrade
