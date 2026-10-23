@@ -71,6 +71,11 @@ class TestColetor(unittest.TestCase):
         self.esperas.append(segundos)
         self.agora += segundos
 
+    def assert_esperas(self, esperadas):
+        self.assertEqual(len(self.esperas), len(esperadas))
+        for atual, esperada in zip(self.esperas, esperadas, strict=True):
+            self.assertAlmostEqual(atual, esperada)
+
     def cliente(self, responder):
         def handler(request):
             self.pedidos.append(request)
@@ -142,7 +147,7 @@ class TestColetor(unittest.TestCase):
         ):
             c.requisitar(client, "/teste")
         self.assertEqual(len(self.pedidos), 5)
-        self.assertEqual(self.esperas, [1, 2, 4, 8])
+        self.assert_esperas([1, 0.2, 2, 4, 8])
 
     def test_retry_after_prevalece_sobre_backoff(self):
         respostas = iter(
@@ -169,7 +174,7 @@ class TestColetor(unittest.TestCase):
                 )
                 with self.cliente(lambda _, itens=respostas: next(itens)) as client:
                     c.requisitar(client, "/teste")
-                self.assertEqual(self.esperas, [1])
+                self.assert_esperas([1, 0.2])
 
     def test_ultima_tentativa_preserva_espera_para_proximo_item(self):
         respostas = iter(
@@ -192,7 +197,7 @@ class TestColetor(unittest.TestCase):
 
         with self.cliente(responder) as client:
             self.assertEqual(c.requisitar(client, "/teste"), {})
-        self.assertEqual(self.esperas, [1])
+        self.assert_esperas([1, 0.2])
 
     def test_headers_ajustam_ritmo_e_latencia_conta_como_espera(self):
         def responder(_):
@@ -206,6 +211,12 @@ class TestColetor(unittest.TestCase):
             c.requisitar(client, "/segundo")
         self.assertEqual(self.tempos, [1000, 1004])
         self.assertEqual(self.esperas, [3.75])
+
+    def test_token_bucket_aplica_a_janela_lenta_do_limite_padrao(self):
+        with self.cliente(lambda _: httpx.Response(200, json={})) as client:
+            c.requisitar(client, "/primeiro")
+            c.requisitar(client, "/segundo")
+        self.assert_esperas([1.2])
 
     def test_janela_esgotada_aguarda_reposicao(self):
         with self.cliente(

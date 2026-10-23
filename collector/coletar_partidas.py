@@ -135,6 +135,7 @@ def requisitar(
         restante = client.proxima_requisicao - time.monotonic()
         if restante > 0:
             time.sleep(restante)
+        client.adquirir_token()
         inicio = time.monotonic()
         resposta = None
         try:
@@ -183,8 +184,10 @@ def requisitar(
 
 # Fallback conservador baseado nos limites publicados para chaves pessoais:
 # https://developer.riotgames.com/docs/portal#web-apis_api-keys
-# Os headers da chave utilizada prevalecem sobre esses valores iniciais.
-PAUSA_ENTRE_REQUISICOES = max(1 / 20, 120 / 100)  # 1,2 s entre inícios.
+# Os headers da chave utilizada prevalecem sobre esses valores iniciais. O
+# token bucket tem capacidade um: abre mão de rajadas e mantém um ritmo
+# conservador compatível com a janela longa da chave pessoal.
+LIMITES_PADRAO = {1: 20, 120: 100}
 MAX_TENTATIVAS = 5
 MAX_IDS_POR_PAGINA = 100
 
@@ -202,25 +205,91 @@ def ler_janelas(header: str) -> dict[int, int]:
     return janelas
 
 
+class BucketDeTokens:
+    """Um bucket conservador para uma janela `limite:segundos` da Riot API."""
+
+    def __init__(self, limite: int, segundos: int, agora: float) -> None:
+        self.limite = limite
+        self.segundos = segundos
+        self.tokens = 1.0
+        self.atualizado_em = agora
+
+    def reconfigurar(self, limite: int, segundos: int, agora: float) -> None:
+        self.limite = limite
+        self.segundos = segundos
+        self._reabastecer(agora)
+
+    def espera_necessaria(self, agora: float) -> float:
+        self._reabastecer(agora)
+        if self.tokens >= 1:
+            return 0.0
+        return (1 - self.tokens) * self.segundos / self.limite
+
+    def consumir(self, agora: float) -> None:
+        self._reabastecer(agora)
+        if self.tokens < 1:
+            raise RuntimeError("token consumido antes de estar disponível")
+        self.tokens -= 1
+
+    def _reabastecer(self, agora: float) -> None:
+        decorrido = max(0.0, agora - self.atualizado_em)
+        self.tokens = min(1.0, self.tokens + decorrido * self.limite / self.segundos)
+        self.atualizado_em = agora
+
+
+class LimitadorToken:
+    """Aplica simultaneamente todas as janelas de rate limit conhecidas."""
+
+    def __init__(self, limites: dict[int, int]) -> None:
+        agora = time.monotonic()
+        self.buckets = {
+            segundos: BucketDeTokens(limite, segundos, agora)
+            for segundos, limite in limites.items()
+        }
+
+    def reconfigurar(self, limites: dict[int, int]) -> None:
+        agora = time.monotonic()
+        for segundos, limite in limites.items():
+            bucket = self.buckets.get(segundos)
+            if bucket is None:
+                self.buckets[segundos] = BucketDeTokens(limite, segundos, agora)
+            else:
+                bucket.reconfigurar(limite, segundos, agora)
+
+    def adquirir(self) -> None:
+        while True:
+            agora = time.monotonic()
+            espera = max(
+                (bucket.espera_necessaria(agora) for bucket in self.buckets.values()),
+                default=0.0,
+            )
+            if espera <= 0:
+                for bucket in self.buckets.values():
+                    bucket.consumir(agora)
+                return
+            time.sleep(espera)
+
+
 class ClienteRiot(httpx.Client):
-    """Conexões reutilizáveis e ritmo compartilhado pela coleta sequencial.
+    """Conexões reutilizáveis e limite compartilhado pela coleta sequencial.
 
     Usa prazo monotônico: tempo gasto em rede/disco já conta como espera.
-    Não coordena processos concorrentes usando a mesma chave (PASSO 18).
+    Não coordena processos concorrentes usando a mesma chave.
     """
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.pausa = PAUSA_ENTRE_REQUISICOES
+        self.limitador = LimitadorToken(LIMITES_PADRAO)
         self.proxima_requisicao = 0.0
+
+    def adquirir_token(self) -> None:
+        self.limitador.adquirir()
 
     def atualizar_limites(self, headers: httpx.Headers, inicio: float) -> None:
         limites = ler_janelas(headers.get("X-App-Rate-Limit", ""))
         consumos = ler_janelas(headers.get("X-App-Rate-Limit-Count", ""))
-        intervalos = [s / n for s, n in limites.items() if n > 0]
-        if intervalos:
-            self.pausa = max(intervalos)
-        self.proxima_requisicao = inicio + self.pausa
+        if limites:
+            self.limitador.reconfigurar(limites)
         for segundos, limite in limites.items():
             if limite > 0 and consumos.get(segundos, 0) >= limite:
                 # O header não informa quando a janela começou. Esperar uma
