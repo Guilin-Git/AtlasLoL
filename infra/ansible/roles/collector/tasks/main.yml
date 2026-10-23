@@ -16,7 +16,9 @@
     mode: "0600"
   diff: false
   no_log: true
-  when: vault_riot_api_key is defined
+  when:
+    - vault_riot_api_key is defined
+    - vault_postgres_password is defined
 
 - name: Verificar se o segredo do coletor foi provisionado
   ansible.builtin.stat:

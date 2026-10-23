@@ -9,12 +9,41 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import httpx
 import zstandard
 
 from collector import coletar_partidas as c
+
+
+class CheckpointEmMemoria:
+    """Dublê que preserva as transições do checkpoint sem exigir PostgreSQL."""
+
+    def __init__(self):
+        self.itens = {}
+
+    def obter(self, match_id):
+        item = self.itens.get(match_id)
+        return None if item is None else SimpleNamespace(**item)
+
+    def registrar_tentativa(self, match_id, _versao):
+        item = self.itens.setdefault(match_id, {"status": "pending", "patch": None})
+        item["status"] = "pending"
+
+    def marcar_artefatos(self, match_id, *, patch, match_pronto, timeline_pronta):
+        self.itens[match_id] = {
+            "status": "complete" if match_pronto and timeline_pronta else "pending",
+            "patch": patch,
+        }
+
+    def marcar_falha(self, match_id, _erro, *, permanente):
+        item = self.itens.setdefault(match_id, {"status": "pending", "patch": None})
+        item["status"] = "permanent_failure" if permanente else "pending"
+
+    def close(self):
+        pass
 
 
 class TestColetor(unittest.TestCase):
@@ -26,11 +55,13 @@ class TestColetor(unittest.TestCase):
         temporario = tempfile.TemporaryDirectory()
         self.addCleanup(temporario.cleanup)
         self.bronze = Path(temporario.name)
+        self.checkpoints = CheckpointEmMemoria()
         for alvo, valor in (
             ("API_KEY", "chave-ficticia"),
             ("BRONZE", self.bronze),
             ("log", Mock()),
             ("configurar_log", Mock()),
+            ("abrir_checkpoint_store", Mock(return_value=self.checkpoints)),
         ):
             self.enterContext(patch.object(c, alvo, valor))
         self.enterContext(patch.object(c.time, "monotonic", lambda: self.agora))
@@ -299,6 +330,18 @@ class TestColetor(unittest.TestCase):
 
         self.assertEqual(self.executar_main(responder), 1)
         self.assertTrue(c.caminho_bronze("timeline", "25.14", "BR1_2").exists())
+
+    def test_404_fica_no_checkpoint_e_nao_consulta_item_novamente(self):
+        def responder(request):
+            if request.url.path.endswith("BR1_1"):
+                return httpx.Response(404)
+            return self.resposta_fluxo(request)
+
+        self.assertEqual(self.executar_main(responder), 1)
+        self.assertEqual(self.checkpoints.obter("BR1_1").status, "permanent_failure")
+        self.pedidos.clear()
+        self.assertEqual(self.executar_main(self.resposta_fluxo), 0)
+        self.assertEqual(len(self.pedidos), 2)
 
     def test_403_aborta_imediatamente(self):
         def responder(request):

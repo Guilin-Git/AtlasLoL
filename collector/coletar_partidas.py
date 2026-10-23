@@ -19,6 +19,8 @@ import httpx
 import zstandard
 from dotenv import load_dotenv
 
+from collector.checkpoint import CheckpointStore, CheckpointUnavailable
+
 # --------------------------------------------------------------------------
 # Configuração
 # --------------------------------------------------------------------------
@@ -38,6 +40,7 @@ BRONZE = Path(os.getenv("ATLAS_BRONZE", "/mnt/dados/bronze"))
 # Dev key expira a cada 24h. Nunca commitar: vive em variável de ambiente
 # e, no PASSO 11, em EnvironmentFile do systemd.
 API_KEY = os.getenv("RIOT_API_KEY")
+COLLECTOR_VERSION = os.getenv("ATLAS_COLLECTOR_VERSION", "checkpoint-v1")
 
 log = logging.getLogger("atlas.coletor")
 
@@ -396,6 +399,11 @@ def indexar_matches(ids: set[str]) -> dict[str, Path]:
     return encontrados
 
 
+def abrir_checkpoint_store() -> CheckpointStore:
+    """Abre o estado durável antes de qualquer chamada que consuma a Riot API."""
+    return CheckpointStore.from_environment()
+
+
 # --------------------------------------------------------------------------
 # Fluxo principal
 # --------------------------------------------------------------------------
@@ -419,9 +427,11 @@ def main() -> int:
 
     inicio = time.monotonic()
 
-    baixadas = puladas = falharam = 0
+    baixadas = puladas = falharam = descartadas = 0
     codigo = 0
+    checkpoints: CheckpointStore | None = None
     try:
+        checkpoints = abrir_checkpoint_store()
         with ClienteRiot(base_url=BASE_URL, timeout=15.0) as client:
             puuid = obter_puuid(client, args.game_name, args.tag_line)
             # Deduplica preservando a ordem, caso o histórico mude ao paginar.
@@ -430,6 +440,36 @@ def main() -> int:
             for match_id in ids:
                 try:
                     destino_match = existentes.get(match_id)
+                    if destino_match is not None:
+                        patch_existente = destino_match.parent.name.removeprefix("patch=")
+                        destino_timeline_existente = caminho_bronze(
+                            "timeline", patch_existente, match_id
+                        )
+                        if ja_baixado(destino_timeline_existente):
+                            estado = checkpoints.obter(match_id)
+                            if estado is None or estado.status != "complete":
+                                checkpoints.registrar_tentativa(
+                                    match_id, COLLECTOR_VERSION
+                                )
+                                checkpoints.marcar_artefatos(
+                                    match_id,
+                                    patch=patch_existente,
+                                    match_pronto=True,
+                                    timeline_pronta=True,
+                                )
+                            puladas += 1
+                            continue
+
+                    estado = checkpoints.obter(match_id)
+                    if estado is not None and estado.status == "permanent_failure":
+                        descartadas += 1
+                        log.info(
+                            "item permanentemente indisponível; ignorado",
+                            extra={"contexto": {"match_id": match_id}},
+                        )
+                        continue
+
+                    checkpoints.registrar_tentativa(match_id, COLLECTOR_VERSION)
                     if destino_match is None:
                         match = buscar_match(client, match_id)
                         patch = extrair_patch(match)
@@ -437,22 +477,19 @@ def main() -> int:
                         gravar_zst(destino_match, match)
                         del match  # Libera o detalhe antes de receber a timeline.
                         existentes[match_id] = destino_match
-                        novo_match = True
                     else:
                         patch = destino_match.parent.name.removeprefix("patch=")
-                        novo_match = False
 
                     destino_timeline = caminho_bronze("timeline", patch, match_id)
                     timeline_pronta = ja_baixado(destino_timeline)
-                    if not novo_match and timeline_pronta:
-                        puladas += 1
-                        log.debug(
-                            "partida já coletada",
-                            extra={"contexto": {"match_id": match_id}},
-                        )
-                        continue
                     if not timeline_pronta:
                         gravar_zst(destino_timeline, buscar_timeline(client, match_id))
+                    checkpoints.marcar_artefatos(
+                        match_id,
+                        patch=patch,
+                        match_pronto=ja_baixado(destino_match),
+                        timeline_pronta=ja_baixado(destino_timeline),
+                    )
                     baixadas += 1
                     log.info(
                         "partida coletada",
@@ -460,11 +497,13 @@ def main() -> int:
                     )
                 except ItemInexistente:
                     falharam += 1
+                    checkpoints.marcar_falha(match_id, "HTTP 404", permanente=True)
                     log.warning(
                         "item inexistente", extra={"contexto": {"match_id": match_id}}
                     )
                 except (ErroTransitorio, httpx.HTTPStatusError, ValueError) as erro:
                     falharam += 1
+                    checkpoints.marcar_falha(match_id, str(erro), permanente=False)
                     log.error(str(erro), extra={"contexto": {"match_id": match_id}})
     except ChaveExpirada as erro:
         log.critical(str(erro))
@@ -472,6 +511,7 @@ def main() -> int:
     except (
         ItemInexistente,
         ErroTransitorio,
+        CheckpointUnavailable,
         httpx.HTTPStatusError,
         ValueError,
         OSError,
@@ -482,6 +522,8 @@ def main() -> int:
         log.warning("coleta interrompida; arquivos completos serão reutilizados")
         codigo = 130
     finally:
+        if checkpoints is not None:
+            checkpoints.close()
         log.info(
             "coleta encerrada",
             extra={
@@ -489,6 +531,7 @@ def main() -> int:
                     "baixadas": baixadas,
                     "puladas": puladas,
                     "falharam": falharam,
+                    "descartadas": descartadas,
                     "duracao_s": round(time.monotonic() - inicio, 1),
                     "codigo_saida": codigo or int(falharam > 0),
                 }
