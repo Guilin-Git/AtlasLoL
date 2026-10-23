@@ -12,5 +12,5 @@ def test_primeira_migration_e_head_do_alembic() -> None:
     head = scripts.get_revision("head")
 
     assert head is not None
-    assert head.revision == "20261022_001"
-    assert head.down_revision is None
+    assert head.revision == "20261023_002"
+    assert head.down_revision == "20261022_001"
