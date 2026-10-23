@@ -66,6 +66,7 @@ class TestColetor(unittest.TestCase):
             self.enterContext(patch.object(c, alvo, valor))
         self.enterContext(patch.object(c.time, "monotonic", lambda: self.agora))
         self.enterContext(patch.object(c.time, "sleep", self.dormir))
+        self.enterContext(patch.object(c.random, "uniform", return_value=0.0))
 
     def dormir(self, segundos):
         self.esperas.append(segundos)
@@ -159,6 +160,15 @@ class TestColetor(unittest.TestCase):
         with self.cliente(lambda _: next(respostas)) as client:
             self.assertEqual(c.requisitar(client, "/teste"), {"ok": True})
         self.assertEqual(self.esperas, [7])
+
+    def test_backoff_adiciona_jitter_quando_retry_after_nao_foi_informado(self):
+        respostas = iter([httpx.Response(503), httpx.Response(200, json={})])
+        with (
+            patch.object(c.random, "uniform", return_value=0.25),
+            self.cliente(lambda _: next(respostas)) as client,
+        ):
+            self.assertEqual(c.requisitar(client, "/teste"), {})
+        self.assert_esperas([1.25])
 
     def test_retry_after_invalido_usa_backoff(self):
         for header in ("inválido", "nan", "inf", "-1"):
