@@ -3,7 +3,7 @@
 > Documento vivo. Atualize-o após cada mudança que altere serviços em execução,
 > dados persistidos, rede, automações, segredos ou o fluxo entre componentes.
 >
-> Última atualização: 2026-10-22 — PASSO 16 concluído.
+> Última atualização: 2026-10-23 — checkpoint do coletor validado no servidor.
 
 ## 1. Visão atual
 
@@ -60,30 +60,38 @@ as migrations Alembic.
 Riot API
    │
    ▼
-coletor horário ──► partidas e timelines `.json.zst` ──► bronze no disco externo
+coletor horário ──► checkpoint operacional no PostgreSQL
+   │
+   └─────────────► partidas e timelines `.json.zst` ──► bronze no disco externo
 
 cliente na rede local ──► FastAPI :8000 ──► PostgreSQL
 ```
 
-O fluxo entre bronze e PostgreSQL ainda não existe. Atualmente:
+O fluxo analítico entre bronze e PostgreSQL ainda não existe. Atualmente:
 
 1. O coletor busca partidas recentes do Riot ID configurado.
 2. Partidas e timelines inéditas são gravadas em `/mnt/dados/bronze` no formato
    JSON comprimido com Zstandard (`.json.zst`).
-3. A API consulta somente PostgreSQL; ela não consome o bronze e não chama a
+3. Antes de baixar uma partida, o coletor registra sua tentativa em
+   `collector_match_checkpoints`. Ao concluir ambos os artefatos, marca o item
+   como `complete`; um `404` é marcado como `permanent_failure`.
+4. O bronze continua sendo a fonte de verdade: se um artefato faltar, ele é
+   baixado novamente mesmo que o checkpoint anterior exista.
+5. A API consulta somente PostgreSQL; ela não consome o bronze e não chama a
    Riot API por requisição.
-4. Portanto, uma conta Riot ainda precisa ser inserida no catálogo local para
+6. Portanto, uma conta Riot ainda precisa ser inserida no catálogo local para
    que uma busca pela API não retorne `404`.
 
 ## 5. Banco e API
 
-Migration atual: `20261022_001`.
+Migration atual: `20261023_002`.
 
 | Grupo | Tabelas | Finalidade |
 | --- | --- | --- |
 | Identidade interna | `app_users`, `user_emails`, `auth_identities` | Usuários, e-mails e futuros provedores como Google ou Discord |
 | Catálogo Riot | `riot_accounts` | Perfil pesquisável por PUUID ou Riot ID |
 | Vínculos | `user_riot_account_links` | Relação entre um usuário Atlas e contas Riot que ele adiciona ao dashboard |
+| Operação do coletor | `collector_match_checkpoints` | Estado persistente por partida para retomar coleta, deduplicar e registrar falhas permanentes |
 
 Endpoints atualmente implantados:
 
@@ -101,7 +109,7 @@ foi desenhado para receber esses recursos sem redesenhar as entidades centrais.
 | Serviço | Endereço atual | Escopo |
 | --- | --- | --- |
 | SSH | `192.168.3.6:22` | Rede doméstica; somente chave SSH |
-| PostgreSQL | `192.168.3.6:5432` | Rede local; não expor à internet |
+| PostgreSQL | `127.0.0.1:5432` no servidor | Não exposto à rede; administração remota somente por túnel SSH |
 | FastAPI | `192.168.3.6:8000` | Rede local; healthcheck validado |
 
 Não há exposição pública da API. Antes de qualquer port-forward para a
@@ -133,6 +141,7 @@ coletor.
 | 2026-10-22 | Migration `upgrade → downgrade base → upgrade` | Terminou em `20261022_001 (head)` no PostgreSQL do servidor |
 | 2026-10-22 | API local com Uvicorn | `/health` e `/docs` validados contra o banco do servidor |
 | 2026-10-22 | Implantação da API via Ansible | Migration, container e healthcheck concluídos; `/health` validado pela rede local |
+| 2026-10-23 | Checkpoint do coletor e bind local do PostgreSQL | Migration `20261023_002` aplicada; coleta automática e controlada encerraram com `codigo_saida: 0` |
 
 ## 9. Próximas evoluções
 
