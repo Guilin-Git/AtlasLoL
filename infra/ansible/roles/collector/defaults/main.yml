@@ -5,6 +5,11 @@ atlas_collector_repo: /home/guilin/AtlasLoL
 atlas_collector_uv: /home/guilin/.local/bin/uv
 atlas_collector_secret_file: /etc/atlas/collector.env
 atlas_collector_bronze_dir: /mnt/dados/bronze
+atlas_collector_database_host: 127.0.0.1
+atlas_collector_database_port: 5432
+atlas_collector_database_name: atlas
+atlas_collector_database_user: atlas_app
+atlas_collector_version: checkpoint-v1
 atlas_riot_game_name: Like Bruce Wayne
 atlas_riot_tag_line: Ligui
 atlas_collector_match_count: 20

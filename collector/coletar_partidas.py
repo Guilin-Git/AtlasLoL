@@ -19,6 +19,8 @@ import httpx
 import zstandard
 from dotenv import load_dotenv
 
+from collector.checkpoint import CheckpointStore, CheckpointUnavailable
+
 # --------------------------------------------------------------------------
 # Configuração
 # --------------------------------------------------------------------------
@@ -38,6 +40,7 @@ BRONZE = Path(os.getenv("ATLAS_BRONZE", "/mnt/dados/bronze"))
 # Dev key expira a cada 24h. Nunca commitar: vive em variável de ambiente
 # e, no PASSO 11, em EnvironmentFile do systemd.
 API_KEY = os.getenv("RIOT_API_KEY")
+COLLECTOR_VERSION = os.getenv("ATLAS_COLLECTOR_VERSION", "checkpoint-v1")
 
 log = logging.getLogger("atlas.coletor")
 
@@ -132,6 +135,7 @@ def requisitar(
         restante = client.proxima_requisicao - time.monotonic()
         if restante > 0:
             time.sleep(restante)
+        client.adquirir_token()
         inicio = time.monotonic()
         resposta = None
         try:
@@ -180,8 +184,10 @@ def requisitar(
 
 # Fallback conservador baseado nos limites publicados para chaves pessoais:
 # https://developer.riotgames.com/docs/portal#web-apis_api-keys
-# Os headers da chave utilizada prevalecem sobre esses valores iniciais.
-PAUSA_ENTRE_REQUISICOES = max(1 / 20, 120 / 100)  # 1,2 s entre inícios.
+# Os headers da chave utilizada prevalecem sobre esses valores iniciais. O
+# token bucket tem capacidade um: abre mão de rajadas e mantém um ritmo
+# conservador compatível com a janela longa da chave pessoal.
+LIMITES_PADRAO = {1: 20, 120: 100}
 MAX_TENTATIVAS = 5
 MAX_IDS_POR_PAGINA = 100
 
@@ -199,25 +205,91 @@ def ler_janelas(header: str) -> dict[int, int]:
     return janelas
 
 
+class BucketDeTokens:
+    """Um bucket conservador para uma janela `limite:segundos` da Riot API."""
+
+    def __init__(self, limite: int, segundos: int, agora: float) -> None:
+        self.limite = limite
+        self.segundos = segundos
+        self.tokens = 1.0
+        self.atualizado_em = agora
+
+    def reconfigurar(self, limite: int, segundos: int, agora: float) -> None:
+        self.limite = limite
+        self.segundos = segundos
+        self._reabastecer(agora)
+
+    def espera_necessaria(self, agora: float) -> float:
+        self._reabastecer(agora)
+        if self.tokens >= 1:
+            return 0.0
+        return (1 - self.tokens) * self.segundos / self.limite
+
+    def consumir(self, agora: float) -> None:
+        self._reabastecer(agora)
+        if self.tokens < 1:
+            raise RuntimeError("token consumido antes de estar disponível")
+        self.tokens -= 1
+
+    def _reabastecer(self, agora: float) -> None:
+        decorrido = max(0.0, agora - self.atualizado_em)
+        self.tokens = min(1.0, self.tokens + decorrido * self.limite / self.segundos)
+        self.atualizado_em = agora
+
+
+class LimitadorToken:
+    """Aplica simultaneamente todas as janelas de rate limit conhecidas."""
+
+    def __init__(self, limites: dict[int, int]) -> None:
+        agora = time.monotonic()
+        self.buckets = {
+            segundos: BucketDeTokens(limite, segundos, agora)
+            for segundos, limite in limites.items()
+        }
+
+    def reconfigurar(self, limites: dict[int, int]) -> None:
+        agora = time.monotonic()
+        for segundos, limite in limites.items():
+            bucket = self.buckets.get(segundos)
+            if bucket is None:
+                self.buckets[segundos] = BucketDeTokens(limite, segundos, agora)
+            else:
+                bucket.reconfigurar(limite, segundos, agora)
+
+    def adquirir(self) -> None:
+        while True:
+            agora = time.monotonic()
+            espera = max(
+                (bucket.espera_necessaria(agora) for bucket in self.buckets.values()),
+                default=0.0,
+            )
+            if espera <= 0:
+                for bucket in self.buckets.values():
+                    bucket.consumir(agora)
+                return
+            time.sleep(espera)
+
+
 class ClienteRiot(httpx.Client):
-    """Conexões reutilizáveis e ritmo compartilhado pela coleta sequencial.
+    """Conexões reutilizáveis e limite compartilhado pela coleta sequencial.
 
     Usa prazo monotônico: tempo gasto em rede/disco já conta como espera.
-    Não coordena processos concorrentes usando a mesma chave (PASSO 18).
+    Não coordena processos concorrentes usando a mesma chave.
     """
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.pausa = PAUSA_ENTRE_REQUISICOES
+        self.limitador = LimitadorToken(LIMITES_PADRAO)
         self.proxima_requisicao = 0.0
+
+    def adquirir_token(self) -> None:
+        self.limitador.adquirir()
 
     def atualizar_limites(self, headers: httpx.Headers, inicio: float) -> None:
         limites = ler_janelas(headers.get("X-App-Rate-Limit", ""))
         consumos = ler_janelas(headers.get("X-App-Rate-Limit-Count", ""))
-        intervalos = [s / n for s, n in limites.items() if n > 0]
-        if intervalos:
-            self.pausa = max(intervalos)
-        self.proxima_requisicao = inicio + self.pausa
+        if limites:
+            self.limitador.reconfigurar(limites)
         for segundos, limite in limites.items():
             if limite > 0 and consumos.get(segundos, 0) >= limite:
                 # O header não informa quando a janela começou. Esperar uma
@@ -396,6 +468,11 @@ def indexar_matches(ids: set[str]) -> dict[str, Path]:
     return encontrados
 
 
+def abrir_checkpoint_store() -> CheckpointStore:
+    """Abre o estado durável antes de qualquer chamada que consuma a Riot API."""
+    return CheckpointStore.from_environment()
+
+
 # --------------------------------------------------------------------------
 # Fluxo principal
 # --------------------------------------------------------------------------
@@ -419,9 +496,11 @@ def main() -> int:
 
     inicio = time.monotonic()
 
-    baixadas = puladas = falharam = 0
+    baixadas = puladas = falharam = descartadas = 0
     codigo = 0
+    checkpoints: CheckpointStore | None = None
     try:
+        checkpoints = abrir_checkpoint_store()
         with ClienteRiot(base_url=BASE_URL, timeout=15.0) as client:
             puuid = obter_puuid(client, args.game_name, args.tag_line)
             # Deduplica preservando a ordem, caso o histórico mude ao paginar.
@@ -430,6 +509,36 @@ def main() -> int:
             for match_id in ids:
                 try:
                     destino_match = existentes.get(match_id)
+                    if destino_match is not None:
+                        patch_existente = destino_match.parent.name.removeprefix("patch=")
+                        destino_timeline_existente = caminho_bronze(
+                            "timeline", patch_existente, match_id
+                        )
+                        if ja_baixado(destino_timeline_existente):
+                            estado = checkpoints.obter(match_id)
+                            if estado is None or estado.status != "complete":
+                                checkpoints.registrar_tentativa(
+                                    match_id, COLLECTOR_VERSION
+                                )
+                                checkpoints.marcar_artefatos(
+                                    match_id,
+                                    patch=patch_existente,
+                                    match_pronto=True,
+                                    timeline_pronta=True,
+                                )
+                            puladas += 1
+                            continue
+
+                    estado = checkpoints.obter(match_id)
+                    if estado is not None and estado.status == "permanent_failure":
+                        descartadas += 1
+                        log.info(
+                            "item permanentemente indisponível; ignorado",
+                            extra={"contexto": {"match_id": match_id}},
+                        )
+                        continue
+
+                    checkpoints.registrar_tentativa(match_id, COLLECTOR_VERSION)
                     if destino_match is None:
                         match = buscar_match(client, match_id)
                         patch = extrair_patch(match)
@@ -437,22 +546,19 @@ def main() -> int:
                         gravar_zst(destino_match, match)
                         del match  # Libera o detalhe antes de receber a timeline.
                         existentes[match_id] = destino_match
-                        novo_match = True
                     else:
                         patch = destino_match.parent.name.removeprefix("patch=")
-                        novo_match = False
 
                     destino_timeline = caminho_bronze("timeline", patch, match_id)
                     timeline_pronta = ja_baixado(destino_timeline)
-                    if not novo_match and timeline_pronta:
-                        puladas += 1
-                        log.debug(
-                            "partida já coletada",
-                            extra={"contexto": {"match_id": match_id}},
-                        )
-                        continue
                     if not timeline_pronta:
                         gravar_zst(destino_timeline, buscar_timeline(client, match_id))
+                    checkpoints.marcar_artefatos(
+                        match_id,
+                        patch=patch,
+                        match_pronto=ja_baixado(destino_match),
+                        timeline_pronta=ja_baixado(destino_timeline),
+                    )
                     baixadas += 1
                     log.info(
                         "partida coletada",
@@ -460,11 +566,13 @@ def main() -> int:
                     )
                 except ItemInexistente:
                     falharam += 1
+                    checkpoints.marcar_falha(match_id, "HTTP 404", permanente=True)
                     log.warning(
                         "item inexistente", extra={"contexto": {"match_id": match_id}}
                     )
                 except (ErroTransitorio, httpx.HTTPStatusError, ValueError) as erro:
                     falharam += 1
+                    checkpoints.marcar_falha(match_id, str(erro), permanente=False)
                     log.error(str(erro), extra={"contexto": {"match_id": match_id}})
     except ChaveExpirada as erro:
         log.critical(str(erro))
@@ -472,6 +580,7 @@ def main() -> int:
     except (
         ItemInexistente,
         ErroTransitorio,
+        CheckpointUnavailable,
         httpx.HTTPStatusError,
         ValueError,
         OSError,
@@ -482,6 +591,8 @@ def main() -> int:
         log.warning("coleta interrompida; arquivos completos serão reutilizados")
         codigo = 130
     finally:
+        if checkpoints is not None:
+            checkpoints.close()
         log.info(
             "coleta encerrada",
             extra={
@@ -489,6 +600,7 @@ def main() -> int:
                     "baixadas": baixadas,
                     "puladas": puladas,
                     "falharam": falharam,
+                    "descartadas": descartadas,
                     "duracao_s": round(time.monotonic() - inicio, 1),
                     "codigo_saida": codigo or int(falharam > 0),
                 }
