@@ -6,6 +6,7 @@ import json
 import logging
 import math
 import os
+import random
 import re
 import sys
 import tempfile
@@ -163,21 +164,37 @@ def requisitar(
                 raise ValueError(f"status inesperado: {status}")
             motivo = f"HTTP {status}"
 
-        espera = float(2 ** (numero - 1))
+        espera_base = float(2 ** (numero - 1))
+        espera = espera_base
+        jitter = 0.0
+        retry_after_aplicado = False
         if resposta is not None and "Retry-After" in resposta.headers:
             try:
                 indicada = float(resposta.headers["Retry-After"])
                 if math.isfinite(indicada) and indicada >= 0:
                     espera = indicada
+                    retry_after_aplicado = True
             except ValueError:
-                pass  # Header inválido: mantém o backoff exponencial.
+                pass
+        if not retry_after_aplicado:
+            # Espalha as tentativas sem reduzir o atraso exponencial mínimo.
+            # Retry-After válido não recebe jitter: é uma instrução explícita
+            # do servidor e precisa ser obedecida exatamente.
+            jitter = random.uniform(0, espera_base)
+            espera += jitter
         client.proxima_requisicao = time.monotonic() + espera
         if numero == MAX_TENTATIVAS:
             raise ErroTransitorio(f"{motivo} após {numero} tentativas: {caminho}")
         log.warning(
             "falha transitória; nova tentativa agendada",
             extra={
-                "contexto": {"motivo": motivo, "tentativa": numero, "espera_s": espera}
+                "contexto": {
+                    "motivo": motivo,
+                    "tentativa": numero,
+                    "espera_base_s": espera_base,
+                    "jitter_s": jitter,
+                    "espera_s": espera,
+                }
             },
         )
 
