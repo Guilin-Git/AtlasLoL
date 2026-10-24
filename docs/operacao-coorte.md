@@ -23,6 +23,7 @@ sudo systemd-run --wait --pipe --collect \
   /home/guilin/.local/bin/uv run python -m collector.coletar_coorte \
     "Like Bruce Wayne" "Ligui" --max-seeds 20 --min-games 20 \
     --status approved \
+    --cohort-id mvp-br-master-grandmaster-20261024 \
     --output /mnt/dados/bronze/cohorts/aprovadas/mvp-br-master-grandmaster.json.zst
 ```
 

@@ -35,6 +35,24 @@ class TestColetarCoorte(unittest.TestCase):
         self.assertEqual(coorte.faixa_imediatamente_acima("GRANDMASTER", "I"), ("CHALLENGER", None))
         self.assertIsNone(coorte.faixa_imediatamente_acima("CHALLENGER", "I"))
 
+    def test_aprovacao_sem_cohort_id_e_rejeitada_pelo_parser(self):
+        with (
+            patch(
+            "sys.argv",
+            [
+                "coletar_coorte.py",
+                "Nome",
+                "BR1",
+                "--status",
+                "approved",
+                "--output",
+                "coorte.json.zst",
+            ],
+            ),
+            self.assertRaisesRegex(SystemExit, "2"),
+        ):
+            coorte.main()
+
     def test_seleciona_puuids_unicos_com_partidas_suficientes(self):
         seeds = coorte.selecionar_sementes(
             [
