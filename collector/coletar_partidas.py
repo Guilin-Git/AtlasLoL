@@ -120,6 +120,7 @@ def requisitar(
     tentativa: int = 1,
     *,
     params: dict[str, int] | None = None,
+    base_url: str = BASE_URL,
 ) -> dict[str, Any] | list[str]:
     """Faz um GET autenticado e devolve o JSON decodificado.
 
@@ -141,7 +142,7 @@ def requisitar(
         resposta = None
         try:
             resposta = client.get(
-                BASE_URL + caminho,
+                base_url + caminho,
                 headers={"X-Riot-Token": API_KEY or ""},
                 params=params,
             )
