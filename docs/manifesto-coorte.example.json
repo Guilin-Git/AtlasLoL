@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "approved",
+  "cohort_id": "mvp-br-master-grandmaster-2026-10-24",
+  "platform": "BR1",
+  "queue": "RANKED_SOLO_5x5",
+  "seeds": [
+    {
+      "puuid": "substitua-por-um-puuid-aprovado",
+      "tier": "MASTER",
+      "division": null,
+      "league_points": 0
+    }
+  ]
+}

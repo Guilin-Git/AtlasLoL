@@ -241,9 +241,17 @@ def main() -> int:
     parser.add_argument("--min-games", default=20, type=int, help="Partidas ranqueadas minimas")
     parser.add_argument("--max-seeds", default=20, type=int, help="Maximo de PUUIDs para revisao")
     parser.add_argument("--output", type=Path, help="Arquivo .json.zst opcional para a descoberta")
+    parser.add_argument(
+        "--status",
+        choices=("candidate", "approved"),
+        default="candidate",
+        help="candidate para revisão; approved libera o arquivo para coleta",
+    )
     args = parser.parse_args()
     if args.page <= 0 or args.min_games < 0 or not 1 <= args.max_seeds <= 50:
         parser.error("--page > 0, --min-games >= 0 e --max-seeds entre 1 e 50")
+    if args.status == "approved" and args.output is None:
+        parser.error("--status approved exige --output para registrar a aprovação")
 
     configurar_log(uuid.uuid4().hex[:12])
     if not API_KEY:
@@ -261,6 +269,7 @@ def main() -> int:
                 minimo_partidas=args.min_games,
                 max_sementes=args.max_seeds,
             )
+        plano["status"] = args.status
         if args.output is None:
             print(json.dumps(plano, ensure_ascii=False, indent=2))
         else:
