@@ -45,6 +45,24 @@ Essas operações mudam infraestrutura ou gastam rate limit. Elas continuam sob
 controle explícito do operador e são executadas depois do merge, a partir do
 WSL, pelo Ansible.
 
+## Entrega assistida no WSL
+
+Depois de revisar e criar o commit em uma branch de trabalho, o fluxo inteiro
+de PR pode ser feito por um comando:
+
+```bash
+bash scripts/entregar-homelab.sh --deploy
+```
+
+O script exige uma árvore Git limpa, envia a branch, cria ou reutiliza o pull
+request, espera os checks de CI e pede **uma única confirmação** antes do
+merge. Após o merge, ele sincroniza `main` localmente e executa o playbook
+Ansible. As senhas do Vault, do `sudo` e a frase da chave SSH continuam sendo
+solicitadas de forma interativa; o script não armazena credenciais.
+
+Sem `--deploy`, o mesmo script para após o merge. Isso é útil para mudanças
+apenas de documentação ou para revisar o deploy separadamente.
+
 ## Proteção da branch: etapa posterior à primeira execução verde
 
 Quando a primeira execução deste workflow estiver verde, configurar uma regra
