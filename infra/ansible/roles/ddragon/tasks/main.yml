@@ -1,0 +1,25 @@
+---
+- name: Instalar unit systemd do Data Dragon
+  ansible.builtin.template:
+    src: atlas-ddragon.service.j2
+    dest: /etc/systemd/system/atlas-ddragon.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recarregar systemd e reiniciar timer do Data Dragon
+
+- name: Instalar timer systemd do Data Dragon
+  ansible.builtin.template:
+    src: atlas-ddragon.timer.j2
+    dest: /etc/systemd/system/atlas-ddragon.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recarregar systemd e reiniciar timer do Data Dragon
+
+- name: Habilitar timer diário do Data Dragon
+  ansible.builtin.systemd_service:
+    name: atlas-ddragon.timer
+    enabled: true
+    state: started
+    daemon_reload: true
