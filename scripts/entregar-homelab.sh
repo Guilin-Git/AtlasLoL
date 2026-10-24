@@ -52,6 +52,23 @@ else
   echo "PR criado: $pr_url"
 fi
 
+echo "Aguardando o GitHub registrar os checks do CI..."
+checks_registrados=false
+for tentativa in {1..12}; do
+  quantidade_checks="$(gh pr view "$pr_url" --json statusCheckRollup --jq '.statusCheckRollup | length')"
+  if [[ "$quantidade_checks" -gt 0 ]]; then
+    checks_registrados=true
+    break
+  fi
+
+  sleep 5
+done
+
+if [[ "$checks_registrados" != true ]]; then
+  echo "O GitHub nao registrou checks no PR apos 60 segundos: $pr_url" >&2
+  exit 1
+fi
+
 echo "Aguardando os checks obrigatorios do CI..."
 if ! gh pr checks "$pr_url" --watch; then
   echo "CI nao aprovado. Corrija a branch antes de fazer merge." >&2
