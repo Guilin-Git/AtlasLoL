@@ -30,8 +30,10 @@ class TestColetarCoorte(unittest.TestCase):
     def test_faixa_imediatamente_acima(self):
         self.assertEqual(coorte.faixa_imediatamente_acima("silver", "IV"), ("SILVER", "III"))
         self.assertEqual(coorte.faixa_imediatamente_acima("SILVER", "I"), ("GOLD", "IV"))
-        with self.assertRaises(ValueError):
-            coorte.faixa_imediatamente_acima("DIAMOND", "I")
+        self.assertEqual(coorte.faixa_imediatamente_acima("DIAMOND", "I"), ("MASTER", None))
+        self.assertEqual(coorte.faixa_imediatamente_acima("MASTER", "I"), ("GRANDMASTER", None))
+        self.assertEqual(coorte.faixa_imediatamente_acima("GRANDMASTER", "I"), ("CHALLENGER", None))
+        self.assertIsNone(coorte.faixa_imediatamente_acima("CHALLENGER", "I"))
 
     def test_seleciona_puuids_unicos_com_partidas_suficientes(self):
         seeds = coorte.selecionar_sementes(
@@ -86,6 +88,45 @@ class TestColetarCoorte(unittest.TestCase):
         self.assertEqual(self.pedidos[0].url.host, "americas.api.riotgames.com")
         self.assertTrue(all(pedido.url.host == "br1.api.riotgames.com" for pedido in self.pedidos[1:]))
         self.assertEqual(self.pedidos[-1].url.params["page"], "1")
+
+    def test_descoberta_elite_usa_endpoint_proprio_sem_divisao(self):
+        def responder(request):
+            caminho = request.url.path
+            if "/riot/account/" in caminho:
+                return httpx.Response(200, json={"puuid": "puuid-proprio"})
+            if caminho.endswith("/by-puuid/puuid-proprio"):
+                return httpx.Response(
+                    200,
+                    json=[{"queueType": "RANKED_SOLO_5x5", "tier": "MASTER", "rank": "I"}],
+                )
+            if caminho.endswith("/masterleagues/by-queue/RANKED_SOLO_5x5"):
+                return httpx.Response(
+                    200,
+                    json={"entries": [{"puuid": "master", "wins": 20, "losses": 10, "leaguePoints": 1}]},
+                )
+            if caminho.endswith("/grandmasterleagues/by-queue/RANKED_SOLO_5x5"):
+                return httpx.Response(
+                    200,
+                    json={"entries": [{"puuid": "grandmaster", "wins": 25, "losses": 10, "leaguePoints": 2}]},
+                )
+            self.fail(f"rota inesperada: {caminho}")
+
+        with self.cliente(responder) as client:
+            plano = coorte.descobrir_coorte(
+                client,
+                game_name="Nome",
+                tag_line="BR1",
+                platform="BR1",
+                pagina=1,
+                minimo_partidas=20,
+                max_sementes=20,
+            )
+
+        self.assertEqual(
+            plano["faixas"],
+            [{"tier": "MASTER", "division": None}, {"tier": "GRANDMASTER", "division": None}],
+        )
+        self.assertEqual([seed["puuid"] for seed in plano["seeds"]], ["grandmaster", "master"])
 
 
 if __name__ == "__main__":
