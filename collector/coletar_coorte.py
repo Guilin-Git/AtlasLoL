@@ -60,25 +60,13 @@ def faixa_imediatamente_acima(tier: str, divisao: str) -> tuple[str, str]:
     return TIERS[indice_tier + 1], DIVISOES[0]
 
 
-def obter_summoner_id(client: ClienteRiot, puuid: str, platform: str) -> str:
-    """Resolve o identificador necessario para consultar a liga do jogador."""
-    payload = requisitar(
-        client,
-        f"/lol/summoner/v4/summoners/by-puuid/{quote(puuid, safe='')}",
-        base_url=base_plataforma(platform),
-    )
-    if not isinstance(payload, dict) or not isinstance(payload.get("id"), str):
-        raise RespostaInvalida("resposta de summoner sem id valido")
-    return payload["id"]
-
-
 def obter_faixa_ranqueada(
-    client: ClienteRiot, summoner_id: str, platform: str
+    client: ClienteRiot, puuid: str, platform: str
 ) -> tuple[str, str]:
-    """Obtém tier e divisão Solo/Duo do jogador-semente."""
+    """Obtém tier e divisão Solo/Duo diretamente pelo PUUID estável."""
     payload = requisitar(
         client,
-        f"/lol/league/v4/entries/by-summoner/{quote(summoner_id, safe='')}",
+        f"/lol/league/v4/entries/by-puuid/{quote(puuid, safe='')}",
         base_url=base_plataforma(platform),
     )
     if not isinstance(payload, list):
@@ -168,8 +156,7 @@ def descobrir_coorte(
 ) -> dict[str, Any]:
     """Resolve o jogador, sua faixa e uma faixa imediatamente acima."""
     puuid = obter_puuid(client, game_name, tag_line)
-    summoner_id = obter_summoner_id(client, puuid, platform)
-    tier, divisao = obter_faixa_ranqueada(client, summoner_id, platform)
+    tier, divisao = obter_faixa_ranqueada(client, puuid, platform)
     faixa_acima = faixa_imediatamente_acima(tier, divisao)
     faixas = [(tier, divisao), faixa_acima]
     entradas = [
