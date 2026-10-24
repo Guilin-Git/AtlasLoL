@@ -1,0 +1,14 @@
+[Unit]
+Description=AtlasLoL Data Dragon collector
+Wants=network-online.target
+After=network-online.target
+RequiresMountsFor=/mnt/dados
+
+[Service]
+Type=oneshot
+User={{ atlas_ddragon_user }}
+Group={{ atlas_ddragon_group }}
+WorkingDirectory={{ atlas_ddragon_repo }}
+Environment=HOME=/home/{{ atlas_ddragon_user }}
+UMask=0077
+ExecStart={{ atlas_ddragon_uv }} run python -m collector.coletar_ddragon --locale {{ atlas_ddragon_locale }}

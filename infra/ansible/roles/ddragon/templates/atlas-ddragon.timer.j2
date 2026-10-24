@@ -1,0 +1,10 @@
+[Unit]
+Description=Atualizar catálogo Data Dragon diariamente
+
+[Timer]
+OnCalendar=*-*-* 04:15:00
+Persistent=true
+Unit=atlas-ddragon.service
+
+[Install]
+WantedBy=timers.target

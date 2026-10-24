@@ -1,0 +1,6 @@
+---
+- name: Recarregar systemd e reiniciar timer do Data Dragon
+  ansible.builtin.systemd_service:
+    name: atlas-ddragon.timer
+    daemon_reload: true
+    state: restarted

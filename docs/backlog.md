@@ -20,7 +20,7 @@ descobrir candidatos → coletar partidas → transformar métricas → comparar
 
 - [x] Coletar partidas das sementes aprovadas, reutilizando rate limit e
   checkpoint do coletor atual, sob demanda e com limite de volume.
-- [ ] Baixar Data Dragon por patch para interpretar campeões, itens e runas.
+- [x] Baixar Data Dragon por patch para interpretar campeões, itens e runas.
 - [ ] Transformar um recorte bronze em métricas básicas por jogador, rota e
   campeão.
 - [ ] Expor uma primeira comparação pela API: partidas, vitórias, KDA, CS/min e
