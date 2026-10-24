@@ -55,8 +55,6 @@ class TestColetarCoorte(unittest.TestCase):
             if "/riot/account/" in caminho:
                 return httpx.Response(200, json={"puuid": "puuid-proprio"})
             if caminho.endswith("/by-puuid/puuid-proprio"):
-                return httpx.Response(200, json={"id": "summoner-1"})
-            if caminho.endswith("/by-summoner/summoner-1"):
                 return httpx.Response(
                     200,
                     json=[{"queueType": "RANKED_SOLO_5x5", "tier": "SILVER", "rank": "IV"}],
