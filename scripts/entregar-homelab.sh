@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cria/acompanha um PR e, mediante uma unica confirmacao, aplica a main no homelab.
-# Uso: bash scripts/entregar-homelab.sh --deploy
+# Credenciais locais opcionais: ~/.config/atlaslol/deploy.env
 
 set -Eeuo pipefail
 
@@ -14,6 +14,16 @@ confirmacao antes do merge. Com --deploy, executa o playbook apos o merge.
 EOF
 }
 
+validar_arquivo_privado() {
+  local caminho="$1"
+  local permissoes
+  permissoes="$(stat -c '%a' "$caminho")"
+  if (( (8#$permissoes & 8#077) != 0 )); then
+    echo "Erro: $caminho deve ser acessivel apenas pelo seu usuario (chmod 600)." >&2
+    exit 1
+  fi
+}
+
 deploy=false
 case "${1:-}" in
   "") ;;
@@ -21,6 +31,14 @@ case "${1:-}" in
   -h|--help) uso; exit 0 ;;
   *) uso >&2; exit 2 ;;
 esac
+
+config_deploy="${ATLAS_DEPLOY_CONFIG:-$HOME/.config/atlaslol/deploy.env}"
+if [[ -f "$config_deploy" ]]; then
+  validar_arquivo_privado "$config_deploy"
+  # Arquivo local, fora do repositório; contém somente caminhos e opções.
+  # shellcheck disable=SC1090
+  source "$config_deploy"
+fi
 
 raiz="$(git rev-parse --show-toplevel)"
 cd "$raiz"
@@ -87,9 +105,31 @@ git switch main
 git pull --ff-only origin main
 
 if [[ "$deploy" == true ]]; then
+  if [[ -n "${ATLAS_SSH_KEY:-}" ]]; then
+    if [[ -z "${SSH_AUTH_SOCK:-}" ]]; then
+      echo "Erro: ssh-agent nao esta ativo. Execute: eval \"\$(ssh-agent -s)\"" >&2
+      exit 1
+    fi
+    ssh-add "$ATLAS_SSH_KEY" >/dev/null 2>&1 || true
+  fi
+
   echo "Aplicando main no servidor com Ansible..."
   cd "$raiz/infra/ansible"
-  ansible-playbook -i inventory.ini site.yml --ask-vault-pass --ask-become-pass
+  argumentos_ansible=(-i inventory.ini site.yml)
+  if [[ -n "${ATLAS_VAULT_PASSWORD_FILE:-}" ]]; then
+    if [[ ! -r "$ATLAS_VAULT_PASSWORD_FILE" ]]; then
+      echo "Erro: arquivo de senha do Vault nao pode ser lido." >&2
+      exit 1
+    fi
+    validar_arquivo_privado "$ATLAS_VAULT_PASSWORD_FILE"
+    argumentos_ansible+=(--vault-password-file "$ATLAS_VAULT_PASSWORD_FILE")
+  else
+    argumentos_ansible+=(--ask-vault-pass)
+  fi
+  if [[ "${ATLAS_AUTOMATED_BECOME:-false}" != true ]]; then
+    argumentos_ansible+=(--ask-become-pass)
+  fi
+  ansible-playbook "${argumentos_ansible[@]}"
 else
   echo "Merge concluido. Para sincronizar o homelab, execute o playbook do Ansible."
 fi

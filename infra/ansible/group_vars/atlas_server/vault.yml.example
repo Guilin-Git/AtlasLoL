@@ -2,3 +2,6 @@
 # Este arquivo e seguro para versionar porque contem apenas um marcador.
 vault_riot_api_key: RGAPI-COLE_SUA_CHAVE_AQUI
 vault_postgres_password: TROQUE_POR_UMA_SENHA_ALEATORIA_FORTE
+# Senha sudo do usuario Ansible. Deixe este nome exatamente assim para que o
+# Ansible a use como become password, sem expor a senha no comando ou no repo.
+ansible_become_password: "troque-pela-senha-sudo-do-servidor"
