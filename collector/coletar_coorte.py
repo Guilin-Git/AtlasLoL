@@ -33,8 +33,22 @@ from collector.coletar_partidas import (
 )
 
 FILA_RANQUEADA_SOLO = "RANKED_SOLO_5x5"
-TIERS = ("IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND")
+TIERS_COM_DIVISAO = (
+    "IRON",
+    "BRONZE",
+    "SILVER",
+    "GOLD",
+    "PLATINUM",
+    "EMERALD",
+    "DIAMOND",
+)
+TIERS_ELITE = ("MASTER", "GRANDMASTER", "CHALLENGER")
 DIVISOES = ("IV", "III", "II", "I")
+ROTAS_ELITE = {
+    "MASTER": "/lol/league/v4/masterleagues/by-queue/{queue}",
+    "GRANDMASTER": "/lol/league/v4/grandmasterleagues/by-queue/{queue}",
+    "CHALLENGER": "/lol/league/v4/challengerleagues/by-queue/{queue}",
+}
 
 
 def base_plataforma(platform: str) -> str:
@@ -45,24 +59,29 @@ def base_plataforma(platform: str) -> str:
     return f"https://{platform_normalizada.lower()}.api.riotgames.com"
 
 
-def faixa_imediatamente_acima(tier: str, divisao: str) -> tuple[str, str]:
+def faixa_imediatamente_acima(tier: str, divisao: str | None) -> tuple[str, str | None] | None:
     """Retorna a proxima faixa ranqueada, por exemplo SILVER IV -> SILVER III."""
     tier = tier.upper()
-    divisao = divisao.upper()
-    if tier not in TIERS or divisao not in DIVISOES:
+    divisao = divisao.upper() if isinstance(divisao, str) else None
+    if tier in TIERS_ELITE:
+        indice_elite = TIERS_ELITE.index(tier)
+        if indice_elite == len(TIERS_ELITE) - 1:
+            return None
+        return TIERS_ELITE[indice_elite + 1], None
+    if tier not in TIERS_COM_DIVISAO or divisao not in DIVISOES:
         raise ValueError("tier ou divisao nao suportados para a coorte inicial")
     indice_divisao = DIVISOES.index(divisao)
     if indice_divisao < len(DIVISOES) - 1:
         return tier, DIVISOES[indice_divisao + 1]
-    indice_tier = TIERS.index(tier)
-    if indice_tier == len(TIERS) - 1:
-        raise ValueError("DIAMOND I nao possui faixa acima nesta coleta inicial")
-    return TIERS[indice_tier + 1], DIVISOES[0]
+    indice_tier = TIERS_COM_DIVISAO.index(tier)
+    if indice_tier == len(TIERS_COM_DIVISAO) - 1:
+        return "MASTER", None
+    return TIERS_COM_DIVISAO[indice_tier + 1], DIVISOES[0]
 
 
 def obter_faixa_ranqueada(
     client: ClienteRiot, puuid: str, platform: str
-) -> tuple[str, str]:
+) -> tuple[str, str | None]:
     """Obtém tier e divisão Solo/Duo diretamente pelo PUUID estável."""
     payload = requisitar(
         client,
@@ -78,14 +97,34 @@ def obter_faixa_ranqueada(
             and isinstance(entrada.get("tier"), str)
             and isinstance(entrada.get("rank"), str)
         ):
-            return entrada["tier"].upper(), entrada["rank"].upper()
+            tier = entrada["tier"].upper()
+            divisao = entrada["rank"].upper()
+            return tier, None if tier in TIERS_ELITE else divisao
     raise RespostaInvalida("jogador sem classificacao RANKED_SOLO_5x5")
 
 
 def listar_entradas(
-    client: ClienteRiot, *, platform: str, tier: str, divisao: str, pagina: int
+    client: ClienteRiot,
+    *,
+    platform: str,
+    tier: str,
+    divisao: str | None,
+    pagina: int,
 ) -> list[dict[str, Any]]:
-    """Lista uma página de entradas League-V4 para uma faixa específica."""
+    """Lista entradas League-V4, inclusive nos endpoints próprios dos elos elite."""
+    if tier in TIERS_ELITE:
+        payload = requisitar(
+            client,
+            ROTAS_ELITE[tier].format(queue=FILA_RANQUEADA_SOLO),
+            base_url=base_plataforma(platform),
+        )
+        entradas = payload.get("entries") if isinstance(payload, dict) else None
+        if not isinstance(entradas, list) or any(not isinstance(item, dict) for item in entradas):
+            raise RespostaInvalida("resposta de entradas elite da liga invalida")
+        return [{**entrada, "tier": tier, "rank": None} for entrada in entradas]
+
+    if divisao not in DIVISOES:
+        raise ValueError("divisao ausente para tier com divisao")
     payload = requisitar(
         client,
         f"/lol/league/v4/entries/{FILA_RANQUEADA_SOLO}/{tier}/{divisao}",
@@ -158,7 +197,9 @@ def descobrir_coorte(
     puuid = obter_puuid(client, game_name, tag_line)
     tier, divisao = obter_faixa_ranqueada(client, puuid, platform)
     faixa_acima = faixa_imediatamente_acima(tier, divisao)
-    faixas = [(tier, divisao), faixa_acima]
+    faixas = [(tier, divisao)]
+    if faixa_acima is not None:
+        faixas.append(faixa_acima)
     entradas = [
         entrada
         for faixa_tier, faixa_divisao in faixas

@@ -13,7 +13,9 @@ amostras não têm a mesma finalidade nem devem ser misturadas como benchmark.
 
 1. Descobrir sementes da coorte BR usando League-V4 na fila `RANKED_SOLO_5x5`.
    A coorte inicial é a faixa do jogador e a faixa imediatamente acima (por
-   exemplo, `SILVER IV` e `SILVER III`).
+   exemplo, `SILVER IV` e `SILVER III`). Em `MASTER`, `GRANDMASTER` e
+   `CHALLENGER`, a Riot não usa divisão: a descoberta usa os endpoints de
+   liga elite; em Challenger, usa somente a própria faixa.
    Esta é uma regra de coleta do MVP, não a definição analítica definitiva de
    jogadores comparáveis.
 2. Guardar PUUID, tier, divisão, LP, vitórias e derrotas como metadados de
